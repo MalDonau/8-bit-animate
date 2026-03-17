@@ -1,0 +1,197 @@
+:root {
+  font-family: "Segoe UI", sans-serif;
+  color: #173226;
+  background:
+    radial-gradient(circle at top left, rgba(255, 197, 119, 0.38), transparent 28%),
+    linear-gradient(180deg, #f7f2e8 0%, #efe6d5 100%);
+  --panel: rgba(255, 252, 246, 0.76);
+  --panel-strong: #fffaf1;
+  --border: rgba(23, 50, 38, 0.1);
+  --text-soft: rgba(23, 50, 38, 0.74);
+  --text-muted: rgba(23, 50, 38, 0.56);
+  --primary: #2f7d59;
+  --primary-dark: #1f5d41;
+  --accent: #ffb65c;
+  --warning: #b25a18;
+  --shadow: 0 20px 50px rgba(83, 57, 19, 0.12);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input, select, textarea { font: inherit; }
+
+input, select, textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: #fffdf8;
+  border-radius: 16px;
+  padding: 14px 16px;
+  outline: none;
+}
+
+button { cursor: pointer; border: 0; border-radius: 16px; }
+
+.app-shell {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 28px 0 48px;
+}
+
+.hero, .panel {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+  padding: 22px;
+  border-radius: 24px;
+}
+
+.hero { padding: 28px; border-radius: 28px; margin-bottom: 20px; overflow: hidden; position: relative; }
+
+.hero__title-container {
+  position: relative;
+  width: fit-content;
+  margin: 15px 0;
+}
+
+.hero__title {
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+  line-height: 1;
+  margin: 0;
+  position: relative;
+  z-index: 2;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.particles {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: -50px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.particle {
+  position: absolute;
+  bottom: -20px;
+  font-size: 1.4rem;
+  opacity: 0;
+  animation: floatUp linear infinite;
+}
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(0.5);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.3;
+  }
+  80% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateY(-150px) rotate(360deg) scale(1.2);
+    opacity: 0;
+  }
+}
+
+.hero__stats { display: flex; gap: 14px; margin-top: 24px; flex-wrap: wrap; }
+.hero__stats article {
+  min-width: 120px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid var(--border);
+}
+
+/* CONTENEDOR PRINCIPAL */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 350px) 1fr;
+  gap: 18px;
+}
+
+/* ORDEN ESCRITORIO (Generator esta primero en HTML, Form segundo) */
+.panel--form { order: 1; }      /* Formulario a la izquierda */
+.panel--generator { order: 2; } /* Generador a la derecha */
+.panel--full { grid-column: 1 / -1; order: 3; } /* Biblioteca abajo */
+
+.panel__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 10px; }
+.panel__actions { display: flex; gap: 8px; }
+
+.button { display: inline-flex; align-items: center; gap: 8px; padding: 12px 16px; font-weight: 600; }
+.button--primary { background: var(--primary); color: white; }
+.button--ghost { background: rgba(47, 125, 89, 0.08); color: var(--primary-dark); }
+.button--danger { color: #8b3f12; background: rgba(178, 90, 24, 0.12); }
+
+.dish-form { display: grid; gap: 12px; }
+.field { padding: 10px; border-radius: 16px; background: rgba(255, 255, 255, 0.4); border: 1px solid var(--border); }
+.field span { display: block; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+
+.info-strip { padding: 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.4); border: 1px solid var(--border); margin-bottom: 15px; }
+.warning { color: var(--warning); font-weight: 600; }
+.success { color: var(--primary-dark); font-weight: 600; }
+
+/* GRILLA SEMANAL */
+.week-grid { display: flex; flex-direction: column; gap: 8px; }
+.week-grid__header { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-left: 40px; margin-bottom: 4px; }
+.week-grid__header span { text-align: center; font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+
+.week-day-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 10px 10px 10px 40px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  position: relative;
+  min-height: 80px;
+}
+.week-day-row--alt { background: rgba(47, 125, 89, 0.05); }
+
+.week-day-label {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 32px;
+  background: var(--primary); color: white;
+  display: flex; align-items: center; justify-content: center;
+  writing-mode: vertical-lr; transform: rotate(180deg);
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  border-radius: 20px 0 0 20px;
+}
+
+.meal-card {
+  padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--border);
+}
+.meal-card h3 { margin: 0; font-size: 0.95rem; }
+.meal-card__protein {
+  display: inline-block; margin-top: 5px; padding: 2px 8px;
+  background: var(--accent); color: #8c4c0f;
+  border-radius: 99px; font-size: 0.7rem; font-weight: 700;
+}
+
+/* BIBLIOTECA */
+.dish-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
+.dish-card {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding: 16px; border-radius: 20px; background: white; border: 1px solid var(--border);
+}
+.protein-pill { display: inline-block; padding: 2px 8px; background: #eee; border-radius: 99px; font-size: 0.75rem; }
+
+/* MOBILE / TABLET */
+@media (max-width: 1100px) {
+  .layout { display: flex; flex-direction: column; gap: 18px; }
+  /* En movil queremos el Generador (order 1) ARRIBA del Formulario (order 2) */
+  .panel--generator { order: 1 !important; }
+  .panel--form { order: 2 !important; }
+  .panel--full { order: 3 !important; }
+}
+
+@media (max-width: 600px) {
+  .week-grid__header { display: none; }
+  .week-day-row { grid-template-columns: 1fr; padding-top: 35px; }
+  .week-day-label {
+    writing-mode: horizontal-tb; transform: none;
+    width: 100%; height: 30px; border-radius: 20px 20px 0 0;
+  }
+}
