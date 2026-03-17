@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import * as Icons from 'lucide-react';
 import { nanoid } from 'nanoid';
 import {
@@ -50,6 +50,9 @@ function App() {
   const [weeklyPlan, setWeeklyPlan] = useState<PlannedMeal[]>(
     weeklySlots.map((slot) => ({ ...slot, dish: null })),
   );
+  const [isDietMode, setIsDietMode] = useState(false);
+
+  const formRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     try {
@@ -153,7 +156,7 @@ function App() {
       mealType: dish.mealTypes.length > 1 ? 'ambos' : (dish.mealTypes[0] as MealType),
       notes: dish.notes,
     });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function handleCancelEdit() {
@@ -177,6 +180,8 @@ function App() {
       const usedDishIds = new Set<string>();
       const days = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
 
+      const heavyProteins = ['carne', 'cerdo', 'pollo'];
+
       for (let i = 0; i < days.length; i++) {
         const day = days[i];
         const prevDay = i > 0 ? days[i - 1] : null;
@@ -188,10 +193,22 @@ function App() {
           const candidates = shuffle(dishes).filter(dish => {
             if (!dish.mealTypes.includes(slot.mealType)) return false;
             if (usedDishIds.has(dish.id)) return false;
+            
             const p = normalizeProtein(dish.protein);
             const isException = p === 'huevo' || p === 'otro';
+            
+            // Regla principal: no repetir proteina exacta en el dia
             if (usedInDay[day].includes(p)) return false;
+            
+            // Regla modo DIET: solo una "pesada" (carne/pollo/cerdo) por dia
+            if (isDietMode && heavyProteins.includes(p)) {
+              const hasHeavyAlready = usedInDay[day].some(usedP => heavyProteins.includes(usedP));
+              if (hasHeavyAlready) return false;
+            }
+
+            // Regla dia anterior: no repetir (excepto huevo/otro)
             if (!isException && prevDayProteins.includes(p)) return false;
+            
             return true;
           });
 
@@ -258,6 +275,14 @@ function App() {
           <div className="panel__header">
             <h2>Semana aleatoria</h2>
             <div className="panel__actions">
+              <button 
+                className={`button ${isDietMode ? 'button--success' : 'button--ghost'}`} 
+                onClick={() => setIsDietMode(!isDietMode)}
+                title="Solo una carne/pollo/cerdo por dia"
+              >
+                <Icons.Apple size={18} />
+                Diet {isDietMode ? 'ON' : 'OFF'}
+              </button>
               <button className="button button--primary" onClick={handleGeneratePlan}><Icons.Dices size={18} /> Random</button>
               <button className="button button--ghost" onClick={() => setWeeklyPlan(weeklySlots.map(s => ({...s, dish: null})))}>Limpiar</button>
             </div>
@@ -304,7 +329,7 @@ function App() {
           </div>
         </section>
 
-        <section className="panel panel--form">
+        <section className="panel panel--form" ref={formRef}>
           <h2>{editingDishId ? 'Editar plato' : 'Nuevo plato'}</h2>
           <form className="dish-form" onSubmit={handleSaveDish}>
             <label className="field"><span>Nombre</span><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Ej: Tarta de atun" /></label>
