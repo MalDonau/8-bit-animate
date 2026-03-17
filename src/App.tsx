@@ -381,10 +381,16 @@ function App() {
                 title="Solo una carne/pollo/cerdo por dia"
               >
                 <Icons.Apple size={18} />
-                Diet {isDietMode ? 'ON' : 'OFF'}
+                <span className="button__text">Diet {isDietMode ? 'ON' : 'OFF'}</span>
               </button>
-              <button className="button button--primary" onClick={handleGeneratePlan}><Icons.Dices size={18} /> Random</button>
-              <button className="button button--ghost" onClick={() => { playFeedback(); setWeeklyPlan(weeklySlots.map(s => ({...s, dish: null}))); }}>Limpiar</button>
+              <button className="button button--primary" onClick={handleGeneratePlan} title="Generar semana aleatoria">
+                <Icons.Dices size={18} /> 
+                <span className="button__text">Random</span>
+              </button>
+              <button className="button button--ghost" onClick={() => { playFeedback(); setWeeklyPlan(weeklySlots.map(s => ({...s, dish: null}))); }} title="Limpiar semana">
+                <Icons.Trash2 size={18} />
+                <span className="button__text">Limpiar</span>
+              </button>
             </div>
           </div>
 
