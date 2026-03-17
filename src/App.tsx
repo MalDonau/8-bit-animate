@@ -282,45 +282,55 @@ function App() {
     const days = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
     const currentDayIdx = days.indexOf(day);
     
+    // Identificar el plato actual para no elegir el mismo
+    const currentSlot = weeklyPlan.find(m => m.day === day && m.mealType === mealType);
+    const currentDishId = currentSlot?.dish?.id;
+    
     // Identificar platos y proteinas usados en otros slots
     const otherMeals = weeklyPlan.filter(m => !(m.day === day && m.mealType === mealType));
     const usedDishIds = new Set(otherMeals.map(m => m.dish?.id).filter(Boolean));
+    if (currentDishId) usedDishIds.add(currentDishId); // Forzamos a que elija uno distinto
     
-    // Proteinas en el mismo dia (el otro turno)
     const sameDayProteins = otherMeals.filter(m => m.day === day).map(m => normalizeProtein(m.dish?.protein || ''));
-    
-    // Proteinas dia anterior
     const prevDay = currentDayIdx > 0 ? days[currentDayIdx - 1] : null;
     const prevDayProteins = otherMeals.filter(m => m.day === prevDay).map(m => normalizeProtein(m.dish?.protein || ''));
-    
-    // Proteinas dia siguiente (importante para no romper la cadena)
     const nextDay = currentDayIdx < days.length - 1 ? days[currentDayIdx + 1] : null;
     const nextDayProteins = otherMeals.filter(m => m.day === nextDay).map(m => normalizeProtein(m.dish?.protein || ''));
 
-    const candidates = shuffle(dishes).filter(dish => {
-      if (!dish.mealTypes.includes(mealType)) return false;
-      if (usedDishIds.has(dish.id)) return false;
+    const getCandidates = (strict: boolean) => {
+      return shuffle(dishes).filter(dish => {
+        if (!dish.mealTypes.includes(mealType)) return false;
+        if (usedDishIds.has(dish.id)) return false;
 
-      const p = normalizeProtein(dish.protein);
-      const isException = p === 'huevo' || p === 'otro';
+        const p = normalizeProtein(dish.protein);
+        const isException = p === 'huevo' || p === 'otro';
 
-      // No repetir en el mismo dia
-      if (sameDayProteins.includes(p)) return false;
+        // Regla inquebrantable: No repetir en el mismo dia
+        if (sameDayProteins.includes(p)) return false;
 
-      // Regla modo DIET: si el otro turno tiene carne, este no puede
-      if (isDietMode && heavyProteins.includes(p)) {
-        const hasHeavyInDay = sameDayProteins.some(usedP => heavyProteins.includes(usedP));
-        if (hasHeavyInDay) return false;
-      }
+        // Regla inquebrantable: Modo Diet (si aplica)
+        if (isDietMode && heavyProteins.includes(p)) {
+          const hasHeavyInDay = sameDayProteins.some(usedP => heavyProteins.includes(usedP));
+          if (hasHeavyInDay) return false;
+        }
 
-      // No repetir con dia anterior ni siguiente (excepto huevo/otro)
-      if (!isException) {
-        if (prevDayProteins.includes(p)) return false;
-        if (nextDayProteins.includes(p)) return false;
-      }
+        if (strict && !isException) {
+          // En modo estricto evitamos ayer y mañana
+          if (prevDayProteins.includes(p)) return false;
+          if (nextDayProteins.includes(p)) return false;
+        }
 
-      return true;
-    });
+        return true;
+      });
+    };
+
+    // Intentar primero con todas las reglas
+    let candidates = getCandidates(true);
+    
+    // Si no hay candidatos, intentamos relajando la regla de ayer/mañana
+    if (candidates.length === 0) {
+      candidates = getCandidates(false);
+    }
 
     const choice = candidates[0];
     if (choice) {
