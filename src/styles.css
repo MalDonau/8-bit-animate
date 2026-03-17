@@ -231,6 +231,12 @@ button { cursor: pointer; border: 0; border-radius: 16px; }
   
   /* Botones compactos en movil */
   .button__text { display: none; }
-  .button { padding: 12px; justify-content: center; }
-  .panel__actions { justify-content: center; width: 100%; }
+  .button { 
+    padding: 8px; /* Reducido de 12px */
+    min-width: 40px; 
+    min-height: 40px; 
+    justify-content: center; 
+  }
+  .button svg { width: 16px; height: 16px; } /* Iconos un poco mas chicos */
+  .panel__actions { justify-content: center; width: 100%; gap: 6px; }
 }
