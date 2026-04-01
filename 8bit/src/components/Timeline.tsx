@@ -38,7 +38,8 @@ const Timeline: React.FC<TimelineProps> = ({
   setIsRecording
 }) => {
   const toggleOnionSkin = () => {
-    const sequence = [0, 1, 2, 3];
+    // Re-added 4 for the requested delay logic
+    const sequence = [0, 1, 2, 3, 4];
     const currentIndex = sequence.indexOf(onionSkin);
     const nextIndex = (currentIndex + 1) % sequence.length;
     setOnionSkin(sequence[nextIndex]);
