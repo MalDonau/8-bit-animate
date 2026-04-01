@@ -9,14 +9,14 @@ interface TimelineProps {
   duplicateFrame: () => void;
   isPlaying: boolean;
   setIsPlaying: (playing: boolean) => void;
-  isRecording: boolean;
-  setIsRecording: (recording: boolean) => void;
   fps: number;
   setFps: (fps: number) => void;
   width: number;
   height: number;
   onionSkin: number;
   setOnionSkin: (count: number) => void;
+  isRecording: boolean;
+  setIsRecording: (recording: boolean) => void;
 }
 
 const Timeline: React.FC<TimelineProps> = ({
@@ -28,17 +28,17 @@ const Timeline: React.FC<TimelineProps> = ({
   duplicateFrame,
   isPlaying,
   setIsPlaying,
-  isRecording,
-  setIsRecording,
   fps,
   setFps,
   width,
   height,
   onionSkin,
-  setOnionSkin
+  setOnionSkin,
+  isRecording,
+  setIsRecording
 }) => {
   const toggleOnionSkin = () => {
-    const sequence = [0, 2, 3, 4];
+    const sequence = [0, 1, 2, 3];
     const currentIndex = sequence.indexOf(onionSkin);
     const nextIndex = (currentIndex + 1) % sequence.length;
     setOnionSkin(sequence[nextIndex]);

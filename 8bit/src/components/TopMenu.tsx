@@ -14,27 +14,20 @@ interface TopMenuProps {
   setShowGrid: (show: boolean) => void;
   zoom: number;
   setZoom: (zoom: number) => void;
-  onionSkin: number;
-  setOnionSkin: (count: number) => void;
   darkMode: boolean;
   setDarkMode: (dark: boolean) => void;
+  audioEnabled: boolean;
+  setAudioEnabled: (enabled: boolean) => void;
 }
 
 const TopMenu: React.FC<TopMenuProps> = ({
   onUndo, onRedo, canUndo, canRedo, 
   onSave, onOpen, onExport, onNew, onImport,
   showGrid, setShowGrid, zoom, setZoom,
-  onionSkin, setOnionSkin,
-  darkMode, setDarkMode
+  darkMode, setDarkMode,
+  audioEnabled, setAudioEnabled
 }) => {
   const [showExportMenu, setShowExportMenu] = React.useState(false);
-
-  const toggleOnionSkin = () => {
-    const sequence = [0, 2, 3, 4];
-    const currentIndex = sequence.indexOf(onionSkin);
-    const nextIndex = (currentIndex + 1) % sequence.length;
-    setOnionSkin(sequence[nextIndex]);
-  };
 
   return (
     <div className="top-menu">
@@ -78,6 +71,15 @@ const TopMenu: React.FC<TopMenuProps> = ({
           <button onClick={() => setZoom(Math.max(1, zoom - 1))}>-</button>
           <button onClick={() => setZoom(Math.min(50, zoom + 1))}>+</button>
         </div>
+        
+        <button 
+          onClick={() => setAudioEnabled(!audioEnabled)}
+          className={audioEnabled ? 'active' : ''}
+          title={audioEnabled ? "Desactivar Audio" : "Activar Audio"}
+        >
+          {audioEnabled ? '🔊' : '🔇'}
+        </button>
+
         <button 
           onClick={() => setDarkMode(!darkMode)}
           className="theme-toggle"

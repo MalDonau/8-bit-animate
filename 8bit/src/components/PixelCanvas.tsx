@@ -22,25 +22,27 @@ interface PixelCanvasProps {
   onRedo: () => void;
   onHistoryPush: (pixels: string[]) => void;
   currentFrameIndex?: number;
-  isRecording?: boolean;
   frames?: string[][];
   onionSkin?: number;
   bgImage?: string | null;
   bgTransform?: BgTransform;
   setBgTransform?: (transform: BgTransform) => void;
   isEditingBg?: boolean;
+  isRecording?: boolean;
+  playPixelSound?: (row: number, color: string, xPos: number, volumeFactor: number) => void;
 }
 
 const PixelCanvas: React.FC<PixelCanvasProps> = ({
   pixels, setPixels, width, height, color, setColor, tool, zoom, showGrid,
-  onHistoryPush, currentFrameIndex = 0, isRecording, frames = [], onionSkin = 0,
-  bgImage, bgTransform, setBgTransform, isEditingBg
+  onHistoryPush, currentFrameIndex = 0, frames = [], onionSkin = 0,
+  bgImage, bgTransform, setBgTransform, isEditingBg, isRecording,
+  playPixelSound
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [activeButton, setActiveButton] = useState<number | null>(null);
-  const [lastPixelIndex, setLastPixelIndex] = useState(-1);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [lastPixelIndex, setLastPixelIndex] = useState(-1);
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -54,10 +56,20 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
         const prevIndex = currentFrameIndex - i;
         if (prevIndex >= 0) {
           const prevFrame = frames[prevIndex];
-          ctx.globalAlpha = 0.5 / i;
+          ctx.globalAlpha = 0.3 / i;
+          ctx.fillStyle = 'rgba(255, 0, 0, 1)';
           prevFrame.forEach((pxColor, index) => {
             if (pxColor === 'transparent') return;
-            ctx.fillStyle = pxColor;
+            ctx.fillRect(index % width, Math.floor(index / width), 1, 1);
+          });
+        }
+        const nextIndex = currentFrameIndex + i;
+        if (nextIndex < frames.length) {
+          const nextFrame = frames[nextIndex];
+          ctx.globalAlpha = 0.3 / i;
+          ctx.fillStyle = 'rgba(0, 255, 0, 1)';
+          nextFrame.forEach((pxColor, index) => {
+            if (pxColor === 'transparent') return;
             ctx.fillRect(index % width, Math.floor(index / width), 1, 1);
           });
         }
@@ -67,8 +79,10 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     ctx.globalAlpha = 1.0;
     pixels.forEach((pxColor, index) => {
       if (pxColor === 'transparent') return;
+      const x = index % width;
+      const y = Math.floor(index / width);
       ctx.fillStyle = pxColor;
-      ctx.fillRect(index % width, Math.floor(index / width), 1, 1);
+      ctx.fillRect(x, y, 1, 1);
     });
   }, [pixels, width, onionSkin, frames, currentFrameIndex]);
 
@@ -97,6 +111,7 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     if (currentTool === 'brush') {
       if (newPixels[index] === color) return;
       newPixels[index] = color;
+      if (playPixelSound) playPixelSound(Math.floor(index / width), color, index % width, 1.2);
     } else if (currentTool === 'eraser') {
       if (newPixels[index] === 'transparent') return;
       newPixels[index] = 'transparent';
@@ -121,7 +136,7 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       }
     }
     setPixels(newPixels);
-  }, [pixels, tool, color, width, height, setColor, setPixels]);
+  }, [pixels, tool, color, width, height, setColor, setPixels, playPixelSound]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isEditingBg && bgTransform && setBgTransform) {
@@ -159,14 +174,22 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     if (!isEditingBg) onHistoryPush(pixels);
   };
 
+  useEffect(() => {
+    if (isDrawing && isRecording && lastPixelIndex !== -1 && activeButton !== null) {
+      const effectiveTool = (activeButton === 2) ? 'eraser' : tool;
+      if (effectiveTool === 'brush' || effectiveTool === 'eraser') {
+        handleAction(lastPixelIndex, effectiveTool);
+      }
+    }
+  }, [currentFrameIndex, isRecording, isDrawing, lastPixelIndex, activeButton, tool, handleAction]);
+
   return (
     <div 
       className="canvas-container"
       style={{
         width: width * zoom, height: height * zoom, flexShrink: 0, position: 'relative',
         cursor: isEditingBg ? (isDrawing ? 'grabbing' : 'grab') : (tool === 'eyedropper' ? 'crosshair' : 'default'),
-        background: '#fff',
-        overflow: 'hidden'
+        background: '#fff', overflow: 'hidden'
       }}
     >
       {bgImage && bgTransform && (

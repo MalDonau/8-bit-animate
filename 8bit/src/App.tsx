@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 import PixelCanvas from './components/PixelCanvas';
 import Toolbar, { DB32_PALETTE, EXTRA_COLORS } from './components/Toolbar';
@@ -14,6 +14,16 @@ const DEFAULT_WIDTH = 32;
 const DEFAULT_HEIGHT = 32;
 const MAX_FRAMES = 48;
 const FULL_PALETTE = [...DB32_PALETTE, ...EXTRA_COLORS];
+
+const PENTATONIC_SCALE = [
+  65.41, 73.42, 82.41, 98.00, 110.00,
+  130.81, 146.83, 164.81, 196.00, 220.00,
+  261.63, 293.66, 329.63, 392.00, 440.00,
+  523.25, 587.33, 659.25, 783.99, 880.00,
+  1046.50, 1174.66, 1318.51, 1567.98, 1760.00,
+  2093.00, 2349.32, 2637.02, 3135.96, 3520.00,
+  4186.01, 4698.63
+];
 
 interface BgTransform {
   x: number;
@@ -31,6 +41,10 @@ function App() {
   ]);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   
+  // Use Ref to keep frames updated inside the interval without restarting it
+  const framesRef = useRef(frames);
+  useEffect(() => { framesRef.current = frames; }, [frames]);
+
   const { pushState, undo, redo, canUndo, canRedo, reset } = useHistory(frames);
   const [currentColor, setCurrentColor] = useState('#000000');
   const [currentTool, setCurrentTool] = useState<'brush' | 'eraser' | 'fill' | 'eyedropper'>('brush');
@@ -43,30 +57,104 @@ function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [onionSkin, setOnionSkin] = useState(0);
   const [darkMode, setDarkMode] = useState(true);
+  const [audioEnabled, setAudioEnabled] = useState(true);
 
-  // Background Image State
+  const audioCtx = useRef<AudioContext | null>(null);
+  const delayNode = useRef<DelayNode | null>(null);
+  const feedbackNode = useRef<GainNode | null>(null);
+
   const [bgImage, setBgImage] = useState<string | null>(null);
   const [isEditingBg, setIsEditingBg] = useState(false);
   const [bgTransform, setBgTransform] = useState<BgTransform>({
-    x: 0,
-    y: 0,
-    scale: 1,
-    rotation: 0,
-    opacity: 0.5
+    x: 0, y: 0, scale: 1, rotation: 0, opacity: 0.5
   });
 
-  // Animation Playback
+  const initAudio = useCallback(() => {
+    if (audioCtx.current) return audioCtx.current;
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const dNode = ctx.createDelay(1.0);
+    const fNode = ctx.createGain();
+    dNode.delayTime.value = 0.3;
+    fNode.gain.value = 0.4;
+    dNode.connect(fNode);
+    fNode.connect(dNode);
+    dNode.connect(ctx.destination);
+    audioCtx.current = ctx;
+    delayNode.current = dNode;
+    feedbackNode.current = fNode;
+    return ctx;
+  }, []);
+
+  const getWaveformByColor = (hex: string): OscillatorType => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    if (r > 150 && g < 150) return 'sawtooth';
+    if (b > 150 && r < 150) return 'sine';
+    if (g > 150 && r < 150) return 'triangle';
+    return 'square';
+  };
+
+  const playSingleNote = useCallback((row: number, color: string, xPos: number, volumeFactor = 1) => {
+    if (!audioEnabled) return;
+    const ctx = initAudio();
+    if (ctx.state === 'suspended') ctx.resume();
+    const noteFreq = PENTATONIC_SCALE[31 - row] || 440;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const pan = ctx.createStereoPanner();
+    osc.type = getWaveformByColor(color);
+    osc.frequency.setValueAtTime(noteFreq, ctx.currentTime);
+    pan.pan.setValueAtTime((xPos / width) * 2 - 1, ctx.currentTime);
+    const volume = 0.05 * volumeFactor;
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.3);
+    osc.connect(pan);
+    pan.connect(gain);
+    if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.3);
+  }, [audioEnabled, initAudio, width, onionSkin]);
+
+  const playFrameSound = useCallback((framePixels: string[]) => {
+    const pixelsByRow: Map<number, {color: string, x: number}[]> = new Map();
+    framePixels.forEach((color, i) => {
+      if (color !== 'transparent') {
+        const row = Math.floor(i / width);
+        const x = i % width;
+        if (!pixelsByRow.has(row)) pixelsByRow.set(row, []);
+        pixelsByRow.get(row)!.push({color, x});
+      }
+    });
+    const activeRows = Array.from(pixelsByRow.keys());
+    if (activeRows.length === 0) return;
+    const maxNotes = Math.min(6, activeRows.length);
+    const selectedRows = activeRows.sort(() => 0.5 - Math.random()).slice(0, maxNotes);
+    selectedRows.forEach(row => {
+      const data = pixelsByRow.get(row)![0];
+      playSingleNote(row, data.color, data.x, 0.8);
+    });
+  }, [playSingleNote, width]);
+
+  // Animation Playback logic using Ref for real-time frame access
   useEffect(() => {
     let interval: number | undefined;
-    if (isPlaying && frames.length > 1) {
+    if (isPlaying && framesRef.current.length > 1) {
       interval = window.setInterval(() => {
-        setCurrentFrameIndex((prev) => (prev + 1) % frames.length);
+        setCurrentFrameIndex((prev) => {
+          const next = (prev + 1) % framesRef.current.length;
+          // IMPORTANT: Access the LATEST frame data from ref
+          const latestFrameData = framesRef.current[next];
+          playFrameSound(latestFrameData);
+          return next;
+        });
       }, 1000 / fps);
-    } else {
+    } else if (!isPlaying) {
       setIsRecording(false);
     }
     return () => window.clearInterval(interval);
-  }, [isPlaying, frames.length, fps]);
+  }, [isPlaying, fps, playFrameSound]);
 
   const pixels = frames[currentFrameIndex];
 
@@ -94,9 +182,7 @@ function App() {
     const prevState = undo();
     if (prevState) {
       setFrames(prevState);
-      if (currentFrameIndex >= prevState.length) {
-        setCurrentFrameIndex(prevState.length - 1);
-      }
+      if (currentFrameIndex >= prevState.length) setCurrentFrameIndex(prevState.length - 1);
     }
   };
 
@@ -104,14 +190,12 @@ function App() {
     const nextState = redo();
     if (nextState) {
       setFrames(nextState);
-      if (currentFrameIndex >= nextState.length) {
-        setCurrentFrameIndex(nextState.length - 1);
-      }
+      if (currentFrameIndex >= nextState.length) setCurrentFrameIndex(nextState.length - 1);
     }
   };
 
   const handleNew = () => {
-    if (confirm('¿Estás seguro? Se perderá el dibujo actual.')) {
+    if (confirm('¿Estás seguro?')) {
       const emptyFrames = [Array(width * height).fill('transparent')];
       setFrames(emptyFrames);
       setCurrentFrameIndex(0);
@@ -142,16 +226,11 @@ function App() {
           const content = JSON.parse(e.target?.result as string);
           setWidth(content.width);
           setHeight(content.height);
-          if (content.frames) {
-             setFrames(content.frames);
-             reset(content.frames);
-          }
+          if (content.frames) { setFrames(content.frames); reset(content.frames); }
           if (content.bgImage) setBgImage(content.bgImage);
           if (content.bgTransform) setBgTransform(content.bgTransform);
           setCurrentFrameIndex(0);
-        } catch (err) {
-          alert('Error al abrir el archivo.');
-        }
+        } catch (err) { alert('Error al abrir el archivo.'); }
       };
       reader.readAsText(file);
     };
@@ -208,16 +287,12 @@ function App() {
     const zip = new JSZip();
     const getFrameCanvas = (framePixels: string[]) => {
       const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = width; canvas.height = height;
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
       framePixels.forEach((color, index) => {
         if (color === 'transparent') {
-          if (format === 'jpg-seq') {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(index % width, Math.floor(index / width), 1, 1);
-          }
+          if (format === 'jpg-seq') { ctx.fillStyle = '#ffffff'; ctx.fillRect(index % width, Math.floor(index / width), 1, 1); }
           return;
         }
         ctx.fillStyle = color;
@@ -255,12 +330,7 @@ function App() {
         const workerBlob = await workerResponse.blob();
         const workerUrl = URL.createObjectURL(workerBlob);
         const gif = new GIF({
-          workers: 2,
-          quality: 1,
-          width: width,
-          height: height,
-          workerScript: workerUrl,
-          transparent: 'rgba(0,0,0,0)'
+          workers: 2, quality: 1, width: width, height: height, workerScript: workerUrl, transparent: 'rgba(0,0,0,0)'
         });
         frames.forEach((frame) => {
           const canvas = getFrameCanvas(frame);
@@ -274,9 +344,7 @@ function App() {
           URL.revokeObjectURL(workerUrl);
         });
         gif.render();
-      } catch (err) {
-        alert('Error al generar el GIF.');
-      }
+      } catch (err) { alert('Error al generar el GIF.'); }
     }
   };
 
@@ -288,16 +356,11 @@ function App() {
     reader.readAsDataURL(file);
   };
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        e.preventDefault();
-        handleUndo();
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
-        e.preventDefault();
-        handleRedo();
-      } else if (e.key === 'b') setCurrentTool('brush');
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); handleUndo(); }
+      else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); handleRedo(); }
+      else if (e.key === 'b') setCurrentTool('brush');
       else if (e.key === 'e') setCurrentTool('eraser');
       else if (e.key === 'f') setCurrentTool('fill');
     };
@@ -308,39 +371,38 @@ function App() {
   return (
     <div className={`app-container ${darkMode ? 'dark-mode' : ''}`}>
       <header>
-        <div className="logo">8-BIT ANIMATE</div>
+        <div className="logo-container">
+          <div className="logo">8-BIT ANIMATE</div>
+          <span className="signature">by maldo</span>
+        </div>
         <TopMenu 
           onUndo={handleUndo} onRedo={handleRedo} canUndo={canUndo} canRedo={canRedo} 
           onSave={handleSave} onOpen={handleOpen} onExport={handleExport} onNew={handleNew}
           onImport={() => setIsImporting(true)} showGrid={showGrid} setShowGrid={setShowGrid}
-          zoom={zoom} setZoom={setZoom} onionSkin={onionSkin} setOnionSkin={setOnionSkin}
-          darkMode={darkMode} setDarkMode={setDarkMode}
+          zoom={zoom} setZoom={setZoom} darkMode={darkMode} setDarkMode={setDarkMode}
+          audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled}
         />
       </header>
       
       <main>
         <Toolbar currentTool={currentTool} setTool={setCurrentTool} currentColor={currentColor} setColor={setCurrentColor} />
-        
         <div className="editor-area">
           <PixelCanvas 
             pixels={pixels} setPixels={updatePixels} width={width} height={height}
             color={currentColor} setColor={setCurrentColor} tool={currentTool}
             zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo}
             onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex}
-            isRecording={isRecording} frames={frames} onionSkin={onionSkin}
-            bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform}
-            isEditingBg={isEditingBg}
+            frames={frames} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform}
+            isEditingBg={isEditingBg} isRecording={isRecording}
+            playPixelSound={playSingleNote}
           />
         </div>
-
         {isImporting && <ImageImporter width={width} height={height} palette={FULL_PALETTE} onImport={handleImport} onCancel={() => setIsImporting(false)} />}
-
         <aside className="info-panel">
           <h3>Información</h3>
           <p>Frames: {frames.length} / {MAX_FRAMES}</p>
           <p>Frame actual: {currentFrameIndex + 1}</p>
           <p>Lienzo: {width} x {height}</p>
-
           <div className="shift-controls">
             <h3>Mover Capa</h3>
             <div className="shift-cross">
@@ -350,45 +412,33 @@ function App() {
               <button className="down" onClick={() => shiftPixels(0, 1)}>⬇️</button>
             </div>
           </div>
-
           <div className="bg-panel">
             <h3>Imagen Referencia</h3>
             {!bgImage ? (
               <input type="file" accept="image/*" onChange={handleBgUpload} />
             ) : (
               <div className="bg-controls">
-                <button 
-                  className={isEditingBg ? 'active' : ''} 
-                  onClick={() => setIsEditingBg(!isEditingBg)}
-                >
-                  {isEditingBg ? '✅ Guardar Posición' : '🎯 Ajustar Fondo'}
+                <button className={isEditingBg ? 'active' : ''} onClick={() => setIsEditingBg(!isEditingBg)}>
+                  {isEditingBg ? '✅ Guardar' : '🎯 Ajustar'}
                 </button>
-                <label>Opacidad: 
-                  <input type="range" min="0" max="1" step="0.1" value={bgTransform.opacity} onChange={e => setBgTransform({...bgTransform, opacity: parseFloat(e.target.value)})} />
-                </label>
-                <label>Zoom: 
-                  <input type="range" min="0.1" max="5" step="0.1" value={bgTransform.scale} onChange={e => setBgTransform({...bgTransform, scale: parseFloat(e.target.value)})} />
-                </label>
-                <label>Girar: 
-                  <input type="range" min="0" max="360" step="1" value={bgTransform.rotation} onChange={e => setBgTransform({...bgTransform, rotation: parseInt(e.target.value)})} />
-                </label>
-                <button onClick={() => setBgImage(null)} className="danger">Quitar Fondo</button>
+                <label>Opacidad: <input type="range" min="0" max="1" step="0.1" value={bgTransform.opacity} onChange={e => setBgTransform({...bgTransform, opacity: parseFloat(e.target.value)})} /></label>
+                <label>Zoom: <input type="range" min="0.1" max="5" step="0.1" value={bgTransform.scale} onChange={e => setBgTransform({...bgTransform, scale: parseFloat(e.target.value)})} /></label>
+                <label>Girar: <input type="range" min="0" max="360" step="1" value={bgTransform.rotation} onChange={e => setBgTransform({...bgTransform, rotation: parseInt(e.target.value)})} /></label>
+                <button onClick={() => setBgImage(null)} className="danger">Quitar</button>
               </div>
             )}
           </div>
-
           <div className="shortcuts">
             <p><strong>B</strong>: Pincel | <strong>E</strong>: Goma</p>
             <p><strong>F</strong>: Relleno | <strong>Alt+Click</strong>: Gotero</p>
           </div>
         </aside>
       </main>
-
       <Timeline 
         frames={frames} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex}
         addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame}
-        isPlaying={isPlaying} setIsPlaying={setIsPlaying} isRecording={isRecording} setIsRecording={setIsRecording}
-        fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin}
+        isPlaying={isPlaying} setIsPlaying={setIsPlaying} fps={fps} setFps={setFps} width={width} height={height}
+        onionSkin={onionSkin} setOnionSkin={setOnionSkin} isRecording={isRecording} setIsRecording={setIsRecording}
       />
     </div>
   );

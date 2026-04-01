@@ -51,12 +51,25 @@ header {
   z-index: 10;
 }
 
+.logo-container {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
 .logo {
   font-family: 'Press Start 2P', cursive;
   font-weight: 400;
   letter-spacing: 0;
   color: var(--text-color);
   font-size: 0.7rem;
+}
+
+.signature {
+  font-size: 0.45rem;
+  font-family: 'Press Start 2P', cursive;
+  opacity: 0.5;
+  color: var(--text-color);
 }
 
 main {
