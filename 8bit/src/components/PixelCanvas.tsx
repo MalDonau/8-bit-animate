@@ -28,14 +28,14 @@ interface PixelCanvasProps {
   bgTransform?: BgTransform;
   setBgTransform?: (transform: BgTransform) => void;
   isEditingBg?: boolean;
-  isRecording?: boolean;
+  isPlaying?: boolean;
   playPixelSound?: (row: number, color: string, xPos: number, volumeFactor: number) => void;
 }
 
 const PixelCanvas: React.FC<PixelCanvasProps> = ({
   pixels, setPixels, width, height, color, setColor, tool, zoom, showGrid,
   onHistoryPush, currentFrameIndex = 0, frames = [], onionSkin = 0,
-  bgImage, bgTransform, setBgTransform, isEditingBg, isRecording,
+  bgImage, bgTransform, setBgTransform, isEditingBg, isPlaying,
   playPixelSound
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -174,14 +174,15 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     if (!isEditingBg) onHistoryPush(pixels);
   };
 
+  // Recording logic: Now depends on isPlaying instead of isRecording
   useEffect(() => {
-    if (isDrawing && isRecording && lastPixelIndex !== -1 && activeButton !== null) {
+    if (isDrawing && isPlaying && lastPixelIndex !== -1 && activeButton !== null) {
       const effectiveTool = (activeButton === 2) ? 'eraser' : tool;
       if (effectiveTool === 'brush' || effectiveTool === 'eraser') {
         handleAction(lastPixelIndex, effectiveTool);
       }
     }
-  }, [currentFrameIndex, isRecording, isDrawing, lastPixelIndex, activeButton, tool, handleAction]);
+  }, [currentFrameIndex, isPlaying, isDrawing, lastPixelIndex, activeButton, tool, handleAction]);
 
   return (
     <div 

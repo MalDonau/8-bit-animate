@@ -15,8 +15,6 @@ interface TimelineProps {
   height: number;
   onionSkin: number;
   setOnionSkin: (count: number) => void;
-  isRecording: boolean;
-  setIsRecording: (recording: boolean) => void;
 }
 
 const Timeline: React.FC<TimelineProps> = ({
@@ -33,12 +31,9 @@ const Timeline: React.FC<TimelineProps> = ({
   width,
   height,
   onionSkin,
-  setOnionSkin,
-  isRecording,
-  setIsRecording
+  setOnionSkin
 }) => {
   const toggleOnionSkin = () => {
-    // Re-added 4 for the requested delay logic
     const sequence = [0, 1, 2, 3, 4];
     const currentIndex = sequence.indexOf(onionSkin);
     const nextIndex = (currentIndex + 1) % sequence.length;
@@ -61,16 +56,6 @@ const Timeline: React.FC<TimelineProps> = ({
             onClick={() => setIsPlaying(!isPlaying)}
           >
             {isPlaying ? '⏸️' : '▶️'}
-          </button>
-          <button 
-            className={`rec-button ${isRecording ? 'active' : ''}`}
-            onClick={() => {
-              if (!isPlaying) setIsPlaying(true);
-              setIsRecording(!isRecording);
-            }}
-            title="Grabación en tiempo real"
-          >
-            🔴
           </button>
         </div>
         <div className="fps-control">
