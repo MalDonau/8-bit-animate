@@ -1,567 +1,354 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
-import * as Icons from 'lucide-react';
-import { nanoid } from 'nanoid';
-import {
-  sampleDishes,
-  weeklySlots,
-  type Dish,
-  type MealType,
-  type PlannedMeal,
-} from './data/meals';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import './App.css';
+import PixelCanvas from './components/PixelCanvas';
+import Toolbar, { DB32_PALETTE, EXTRA_COLORS } from './components/Toolbar';
+import TopMenu from './components/TopMenu';
+import ImageImporter from './components/ImageImporter';
+import Timeline from './components/Timeline';
+import { useHistory } from './hooks/useHistory';
+import JSZip from 'jszip';
+// @ts-ignore
+import GIF from 'gif.js';
 
-const DISHES_STORAGE_KEY = 'maldonado-menu-dishes';
-const PLAN_STORAGE_KEY = 'maldonado-menu-weekly-plan';
-const REQUIRED_WEEKLY_PROTEINS = weeklySlots.length;
+const DEFAULT_WIDTH = 32;
+const DEFAULT_HEIGHT = 32;
+const MAX_FRAMES = 48;
+const FULL_PALETTE = [...DB32_PALETTE, ...EXTRA_COLORS];
 
-type FormState = {
-  name: string;
-  protein: string;
-  mealType: 'ambos' | MealType;
-  notes: string;
+const SCALES = {
+  MAJOR_PENTA: [0, 2, 4, 7, 9],
+  MINOR_PENTA: [0, 3, 5, 7, 10],
+  LYDIAN: [0, 2, 4, 6, 7, 9, 11],
+  PHRYGIAN: [0, 1, 3, 5, 7, 8, 10]
 };
 
-const emptyForm: FormState = {
-  name: '',
-  protein: 'Carne',
-  mealType: 'ambos',
-  notes: '',
+const BASE_FREQ = 65.41;
+
+const generateScaleFreqs = (steps: number[]) => {
+  const freqs: number[] = [];
+  for (let i = 0; i < 32; i++) {
+    const octave = Math.floor(i / steps.length);
+    const stepIndex = i % steps.length;
+    const semitones = octave * 12 + steps[stepIndex];
+    freqs.push(BASE_FREQ * Math.pow(2, semitones / 12));
+  }
+  return freqs;
 };
 
-function normalizeProtein(protein: string) {
-  return (protein || '').trim().toLowerCase();
+const SCALE_FREQS = {
+  MAJOR: generateScaleFreqs(SCALES.MAJOR_PENTA),
+  MINOR: generateScaleFreqs(SCALES.MINOR_PENTA),
+  DREAMY: generateScaleFreqs(SCALES.LYDIAN),
+  DARK: generateScaleFreqs(SCALES.PHRYGIAN)
+};
+
+interface BgTransform {
+  x: number; y: number; scale: number; rotation: number; opacity: number;
 }
 
-function shuffle<T>(items: T[]) {
-  const copy = [...items];
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
-    const current = copy[index];
-    copy[index] = copy[randomIndex];
-    copy[randomIndex] = current;
-  }
-  return copy;
-}
-
-// Sonido solo para papelera, vibracion para todos
-const playFeedback = (type: 'click' | 'trash' = 'click') => {
-  if (typeof window === 'undefined') return;
-
-  // Vibracion reforzada (30ms para click, patron doble para trash)
-  if (window.navigator.vibrate) {
-    if (type === 'trash') {
-      window.navigator.vibrate([40, 60, 40]);
-    } else {
-      window.navigator.vibrate(30);
+const getNeighborsCount = (pixels: string[], index: number, width: number, height: number, color: string) => {
+  const x = index % width;
+  const y = Math.floor(index / width);
+  let neighbors = 0;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+        if (pixels[ny * width + nx] === color) neighbors++;
+      }
     }
   }
-  
-  // Sonido SOLO si es tipo trash
-  if (type !== 'trash') return;
-
-  try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
-    
-    // Sonido de PAPELERA (Ruido blanco para simular crujido)
-    const bufferSize = ctx.sampleRate * 0.15;
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = Math.random() * 2 - 1;
-    }
-    const noise = ctx.createBufferSource();
-    noise.buffer = buffer;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 1000;
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.15, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(ctx.destination);
-    noise.start();
-  } catch (e) {
-    // Silencio si falla
-  }
+  return neighbors;
 };
 
 function App() {
-  const [isReady, setIsReady] = useState(false);
-  const [editingDishId, setEditingDishId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm);
-  const [dishes, setDishes] = useState<Dish[]>(sampleDishes);
-  const [weeklyPlan, setWeeklyPlan] = useState<PlannedMeal[]>(
-    weeklySlots.map((slot) => ({ ...slot, dish: null })),
-  );
-  const [isDietMode, setIsDietMode] = useState(false);
-  const [toasts, setToasts] = useState<{ id: string; text: string; x: number; y: number }[]>([]);
+  const [width, setWidth] = useState(DEFAULT_WIDTH);
+  const [height, setHeight] = useState(DEFAULT_HEIGHT);
+  const [frames, setFrames] = useState<string[][]>([
+    Array(DEFAULT_WIDTH * DEFAULT_HEIGHT).fill('transparent')
+  ]);
+  const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
+  
+  const framesRef = useRef(frames);
+  useEffect(() => { framesRef.current = frames; }, [frames]);
 
-  const formRef = useRef<HTMLElement>(null);
+  const { pushState, undo, redo, canUndo, canRedo, reset } = useHistory(frames);
+  const [currentColor, setCurrentColor] = useState('#000000');
+  const [currentTool, setCurrentTool] = useState<'brush' | 'eraser' | 'fill' | 'eyedropper'>('brush');
+  const [zoom, setZoom] = useState(15);
+  const [showGrid, setShowGrid] = useState(true);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [fps, setFps] = useState(12);
+  const [onionSkin, setOnionSkin] = useState(0);
+  const [darkMode, setDarkMode] = useState(true);
+  const [audioEnabled, setAudioEnabled] = useState(true);
 
-  // Funcion para disparar el texto flotante
-  const triggerToast = (text: string, e: React.MouseEvent) => {
-    // Solo si el texto del boton esta oculto (movil)
-    if (window.innerWidth > 600) return;
+  const audioCtx = useRef<AudioContext | null>(null);
+  const delayNode = useRef<DelayNode | null>(null);
+  const feedbackNode = useRef<GainNode | null>(null);
+  const filterNode = useRef<BiquadFilterNode | null>(null);
 
-    const id = nanoid();
-    const x = e.clientX;
-    const y = e.clientY;
-    
-    setToasts(prev => [...prev, { id, text, x, y }]);
-    
-    // Limpiar el toast despues de la animacion
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 1000);
-  };
+  const [bgImage, setBgImage] = useState<string | null>(null);
+  const [isEditingBg, setIsEditingBg] = useState(false);
+  const [bgTransform, setBgTransform] = useState<BgTransform>({
+    x: 0, y: 0, scale: 1, rotation: 0, opacity: 0.5
+  });
 
-  useEffect(() => {
-    try {
-      const savedDishes = window.localStorage.getItem(DISHES_STORAGE_KEY);
-      if (savedDishes) {
-        const parsed = JSON.parse(savedDishes);
-        if (Array.isArray(parsed)) setDishes(parsed);
-      }
-
-      const savedPlan = window.localStorage.getItem(PLAN_STORAGE_KEY);
-      if (savedPlan) {
-        const parsed = JSON.parse(savedPlan);
-        if (Array.isArray(parsed)) setWeeklyPlan(parsed);
-      }
-    } catch (e) {
-      console.error(e);
-      window.localStorage.clear();
-    } finally {
-      setIsReady(true);
-    }
+  const initAudio = useCallback(() => {
+    if (audioCtx.current) return audioCtx.current;
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const dNode = ctx.createDelay(3.0);
+    const fNode = ctx.createGain();
+    const lpfNode = ctx.createBiquadFilter();
+    lpfNode.type = 'lowpass';
+    lpfNode.frequency.value = 1200;
+    lpfNode.Q.value = 0.7;
+    dNode.delayTime.value = 0.5;
+    fNode.gain.value = 0.3;
+    dNode.connect(fNode);
+    fNode.connect(dNode);
+    dNode.connect(lpfNode);
+    lpfNode.connect(ctx.destination);
+    audioCtx.current = ctx;
+    delayNode.current = dNode;
+    feedbackNode.current = fNode;
+    filterNode.current = lpfNode;
+    return ctx;
   }, []);
 
   useEffect(() => {
-    if (!isReady) return;
-    window.localStorage.setItem(DISHES_STORAGE_KEY, JSON.stringify(dishes));
-  }, [dishes, isReady]);
+    if (delayNode.current && onionSkin > 0) {
+      const frameMultipliers = [0, 4, 6, 8, 12];
+      const delayTimeSeconds = frameMultipliers[onionSkin] / fps;
+      delayNode.current.delayTime.setTargetAtTime(delayTimeSeconds, audioCtx.current?.currentTime || 0, 0.1);
+    }
+  }, [onionSkin, fps]);
+
+  const getHexInfo = (hex: string) => {
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    const s = max === min ? 0 : (l > 0.5 ? (max - min) / (2 - max - min) : (max - min) / (max + min));
+    return { s, l };
+  };
+
+  const getWaveformByColor = (hex: string): OscillatorType => {
+    const info = getHexInfo(hex);
+    if (info.s > 0.75) return 'sawtooth';
+    if (info.s > 0.4) return 'square';
+    if (info.s > 0.1) return 'triangle';
+    return 'sine';
+  };
+
+  const getResultantScale = useCallback((framePixels: string[]) => {
+    const activeColors = framePixels.filter(c => c !== 'transparent' && c.toLowerCase() !== '#ffffff');
+    if (activeColors.length === 0) return SCALE_FREQS.MAJOR;
+    let totalS = 0, totalL = 0;
+    activeColors.forEach(c => {
+      const info = getHexInfo(c);
+      totalS += info.s;
+      totalL += info.l;
+    });
+    const avgS = totalS / activeColors.length;
+    const avgL = totalL / activeColors.length;
+    if (avgL > 0.5) return avgS > 0.4 ? SCALE_FREQS.MAJOR : SCALE_FREQS.DREAMY;
+    return avgS > 0.4 ? SCALE_FREQS.MINOR : SCALE_FREQS.DARK;
+  }, []);
+
+  const playSingleNote = useCallback((row: number, color: string, xPos: number, volumeFactor = 1, colorDensity = 1) => {
+    if (!audioEnabled || !color || color === 'transparent' || color.toLowerCase() === '#ffffff') return;
+    const ctx = initAudio();
+    if (ctx.state === 'suspended') ctx.resume();
+    const info = getHexInfo(color);
+    const framePixels = framesRef.current[currentFrameIndex];
+    const currentScale = getResultantScale(framePixels);
+    const noteFreq = currentScale[31 - row] || 440;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const pan = ctx.createStereoPanner();
+    osc.type = getWaveformByColor(color);
+    osc.frequency.setValueAtTime(noteFreq, ctx.currentTime);
+    pan.pan.setValueAtTime((xPos / width) * 2 - 1, ctx.currentTime);
+    const volume = 0.05 * volumeFactor;
+    const attackTime = 0.2 * (1 - info.s) + 0.005;
+    
+    // NEW DECAY LOGIC
+    const neighbors = getNeighborsCount(framePixels, row * width + xPos, width, height, color);
+    const decayTime = Math.min(2.0, 0.2 + (neighbors * 0.2) + (colorDensity / 100));
+    
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + attackTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + decayTime);
+    osc.connect(pan);
+    pan.connect(gain);
+    if (filterNode.current) gain.connect(filterNode.current);
+    if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
+    osc.start();
+    osc.stop(ctx.currentTime + decayTime + 0.1);
+  }, [audioEnabled, initAudio, width, height, onionSkin, currentFrameIndex, getResultantScale]);
+
+  const playFrameSound = useCallback((framePixels: string[]) => {
+    const pixelsByRow: Map<number, {color: string, x: number}[]> = new Map();
+    const colorCounts: Map<string, number> = new Map();
+    framePixels.forEach((color, i) => {
+      if (color !== 'transparent' && color.toLowerCase() !== '#ffffff') {
+        const row = Math.floor(i / width);
+        if (!pixelsByRow.has(row)) pixelsByRow.set(row, []);
+        pixelsByRow.get(row)!.push({color, x: i % width});
+        colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
+      }
+    });
+    const activeRows = Array.from(pixelsByRow.keys());
+    if (activeRows.length === 0) return;
+    const currentScale = getResultantScale(framePixels);
+    const maxNotes = Math.min(5, activeRows.length);
+    const selectedRows = activeRows.sort(() => 0.5 - Math.random()).slice(0, maxNotes);
+    selectedRows.forEach(row => {
+      const data = pixelsByRow.get(row)![0];
+      const density = colorCounts.get(data.color) || 1;
+      const noteFreq = currentScale[31 - row] || 440;
+      const ctx = initAudio();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const pan = ctx.createStereoPanner();
+      osc.type = getWaveformByColor(data.color);
+      osc.frequency.setValueAtTime(noteFreq, ctx.currentTime);
+      pan.pan.setValueAtTime((data.x / width) * 2 - 1, ctx.currentTime);
+      const volume = 0.03;
+      const info = getHexInfo(data.color);
+      const attackTime = 0.2 * (1 - info.s) + 0.005;
+      
+      // NEW DECAY LOGIC
+      const neighbors = getNeighborsCount(framePixels, row * width + data.x, width, height, data.color);
+      const decayTime = Math.min(2.0, 0.2 + (neighbors * 0.2) + (density / 100));
+      
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + attackTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + decayTime);
+      osc.connect(pan);
+      pan.connect(gain);
+      if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + decayTime + 0.1);
+    });
+  }, [initAudio, width, height, onionSkin, getResultantScale]);
 
   useEffect(() => {
-    if (!isReady) return;
-    window.localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(weeklyPlan));
-  }, [weeklyPlan, isReady]);
-
-  const proteinCount = useMemo(() => {
-    return new Set(dishes.map((dish) => normalizeProtein(dish.protein))).size;
-  }, [dishes]);
-
-  const missingSlots = useMemo(() => {
-    return weeklyPlan.filter((meal) => meal.dish === null);
-  }, [weeklyPlan]);
-
-  const lunchCount = dishes.filter((dish) => (dish.mealTypes || []).includes('almuerzo')).length;
-  const dinnerCount = dishes.filter((dish) => (dish.mealTypes || []).includes('cena')).length;
-
-  if (!isReady) return null;
-
-  function handleSaveDish(event: React.FormEvent) {
-    playFeedback();
-    event.preventDefault();
-    if (!form.name.trim() || !form.protein.trim()) return;
-
-    if (editingDishId) {
-      setDishes((current) =>
-        current.map((dish) =>
-          dish.id === editingDishId
-            ? {
-                ...dish,
-                name: form.name.trim(),
-                protein: form.protein.trim(),
-                mealTypes:
-                  form.mealType === 'ambos' ? ['almuerzo', 'cena'] : [form.mealType],
-                notes: form.notes.trim(),
-              }
-            : dish
-        )
-      );
-      setWeeklyPlan((current) =>
-        current.map((meal) =>
-          meal.dish?.id === editingDishId
-            ? {
-                ...meal,
-                dish: {
-                  ...meal.dish,
-                  name: form.name.trim(),
-                  protein: form.protein.trim(),
-                  mealTypes:
-                    form.mealType === 'ambos' ? ['almuerzo', 'cena'] : [form.mealType],
-                  notes: form.notes.trim(),
-                },
-              }
-            : meal
-        )
-      );
-      setEditingDishId(null);
-    } else {
-      const nextDish: Dish = {
-        id: nanoid(),
-        name: form.name.trim(),
-        protein: form.protein.trim(),
-        mealTypes: form.mealType === 'ambos' ? ['almuerzo', 'cena'] : [form.mealType],
-        notes: form.notes.trim(),
-      };
-      setDishes((current) => [nextDish, ...current]);
+    let interval: number | undefined;
+    if (isPlaying && framesRef.current.length > 1) {
+      interval = window.setInterval(() => {
+        setCurrentFrameIndex((prev) => {
+          const next = (prev + 1) % framesRef.current.length;
+          playFrameSound(framesRef.current[next]);
+          return next;
+        });
+      }, 1000 / fps);
     }
-    setForm(emptyForm);
-  }
+    return () => window.clearInterval(interval);
+  }, [isPlaying, fps, playFrameSound]);
 
-  function handleEditClick(dish: Dish) {
-    playFeedback();
-    setEditingDishId(dish.id);
-    setForm({
-      name: dish.name,
-      protein: dish.protein,
-      mealType: dish.mealTypes.length > 1 ? 'ambos' : (dish.mealTypes[0] as MealType),
-      notes: dish.notes,
-    });
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
+  const pixels = frames[currentFrameIndex];
+  const updatePixels = (newPixels: string[]) => { const newFrames = [...frames]; newFrames[currentFrameIndex] = newPixels; setFrames(newFrames); };
+  const handleImport = (importedPixels: string[]) => { const newFrames = [...frames]; newFrames[currentFrameIndex] = importedPixels; setFrames(newFrames); pushState(newFrames); setIsImporting(false); };
+  const handleHistoryPush = (pixelsToPush: string[]) => { const newFrames = [...frames]; newFrames[currentFrameIndex] = pixelsToPush; pushState(newFrames); };
+  const handleUndo = () => { const prevState = undo(); if (prevState) { setFrames(prevState); if (currentFrameIndex >= prevState.length) setCurrentFrameIndex(prevState.length - 1); } };
+  const handleRedo = () => { const nextState = redo(); if (nextState) { setFrames(nextState); if (currentFrameIndex >= nextState.length) setCurrentFrameIndex(nextState.length - 1); } };
+  const handleNew = () => { if (confirm('¿Estás seguro?')) { const emptyFrames = [Array(width * height).fill('transparent')]; setFrames(emptyFrames); setCurrentFrameIndex(0); reset(emptyFrames); } };
+  const handleSave = () => { const data = JSON.stringify({ width, height, frames, bgImage, bgTransform }); const blob = new Blob([data], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'pixel-art-animation.json'; link.click(); };
+  const handleOpen = () => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.json'; input.onchange = (e) => { const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { try { const content = JSON.parse(e.target?.result as string); setWidth(content.width); setHeight(content.height); if (content.frames) { setFrames(content.frames); reset(content.frames); } if (content.bgImage) setBgImage(content.bgImage); if (content.bgTransform) setBgTransform(content.bgTransform); setCurrentFrameIndex(0); } catch (err) { alert('Error al abrir el archivo.'); } }; reader.readAsText(file); }; input.click(); };
+  const addFrame = () => { if (frames.length >= MAX_FRAMES) return; const newFrames = [...frames]; const emptyFrame = Array(width * height).fill('transparent'); newFrames.splice(currentFrameIndex + 1, 0, emptyFrame); setFrames(newFrames); setCurrentFrameIndex(currentFrameIndex + 1); pushState(newFrames); };
+  const duplicateFrame = () => { if (frames.length >= MAX_FRAMES) return; const newFrames = [...frames]; const duplicatedFrame = [...frames[currentFrameIndex]]; newFrames.splice(currentFrameIndex + 1, 0, duplicatedFrame); setFrames(newFrames); setCurrentFrameIndex(currentFrameIndex + 1); pushState(newFrames); };
+  const removeFrame = () => { if (frames.length <= 1) return; const newFrames = frames.filter((_, i) => i !== currentFrameIndex); setFrames(newFrames); setCurrentFrameIndex(Math.max(0, currentFrameIndex - 1)); pushState(newFrames); };
+  const shiftPixels = (dx: number, dy: number) => { const newPixels = Array(width * height).fill('transparent'); const currentPixels = frames[currentFrameIndex]; for (let y = 0; y < height; y++) { for (let x = 0; x < width; x++) { const nx = x + dx; const ny = y + dy; if (nx >= 0 && nx < width && ny >= 0 && ny < height) { newPixels[ny * width + nx] = currentPixels[y * width + x]; } } } const newFrames = [...frames]; newFrames[currentFrameIndex] = newPixels; setFrames(newFrames); pushState(newFrames); };
 
-  function handleCancelEdit() {
-    playFeedback();
-    setEditingDishId(null);
-    setForm(emptyForm);
-  }
+  const moveFrame = (fromIndex: number, toIndex: number) => {
+    const newFrames = [...frames];
+    const [movedFrame] = newFrames.splice(fromIndex, 1);
+    newFrames.splice(toIndex, 0, movedFrame);
+    setFrames(newFrames);
+    setCurrentFrameIndex(toIndex);
+    pushState(newFrames);
+  };
 
-  function handleDeleteDish(dishId: string) {
-    playFeedback('trash');
-    setDishes((current) => current.filter((dish) => dish.id !== dishId));
-    setWeeklyPlan((current) =>
-      current.map((meal) =>
-        meal.dish?.id === dishId ? { ...meal, dish: null } : meal
-      )
-    );
-  }
-
-  function handleGeneratePlan() {
-    playFeedback();
-    const generate = (): PlannedMeal[] => {
-      const plan: PlannedMeal[] = [];
-      const usedInDay: Record<string, string[]> = {};
-      const usedDishIds = new Set<string>();
-      const days = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
-
-      const heavyProteins = ['carne', 'cerdo', 'pollo'];
-
-      for (let i = 0; i < days.length; i++) {
-        const day = days[i];
-        const prevDay = i > 0 ? days[i - 1] : null;
-        usedInDay[day] = [];
-        const prevDayProteins = prevDay ? usedInDay[prevDay] : [];
-
-        const daySlots = weeklySlots.filter(s => s.day === day);
-        for (const slot of daySlots) {
-          const candidates = shuffle(dishes).filter(dish => {
-            if (!dish.mealTypes.includes(slot.mealType)) return false;
-            if (usedDishIds.has(dish.id)) return false;
-            
-            const p = normalizeProtein(dish.protein);
-            const isException = p === 'huevo' || p === 'otro';
-            
-            // Regla principal: no repetir proteina exacta en el dia
-            if (usedInDay[day].includes(p)) return false;
-            
-            // Regla modo DIET: solo una "pesada" (carne/pollo/cerdo) por dia
-            if (isDietMode && heavyProteins.includes(p)) {
-              const hasHeavyAlready = usedInDay[day].some(usedP => heavyProteins.includes(usedP));
-              if (hasHeavyAlready) return false;
-            }
-
-            // Regla dia anterior: no repetir (excepto huevo/otro)
-            if (!isException && prevDayProteins.includes(p)) return false;
-            
-            return true;
-          });
-
-          const choice = candidates[0];
-          if (choice) {
-            plan.push({ ...slot, dish: choice });
-            usedInDay[day].push(normalizeProtein(choice.protein));
-            usedDishIds.add(choice.id);
-          } else {
-            plan.push({ ...slot, dish: null });
-          }
-        }
-      }
-      return plan;
-    };
-
-    let bestPlan = generate();
-    let bestCount = bestPlan.filter(p => p.dish).length;
-
-    for (let i = 0; i < 50; i++) {
-      const newPlan = generate();
-      const newCount = newPlan.filter(p => p.dish).length;
-      if (newCount > bestCount) {
-        bestPlan = newPlan;
-        bestCount = newCount;
-        if (bestCount === weeklySlots.length) break;
-      }
-    }
-    setWeeklyPlan(bestPlan);
-  }
-
-  function handleRerollSlot(day: string, mealType: MealType) {
-    playFeedback();
-    const heavyProteins = ['carne', 'cerdo', 'pollo'];
-    const days = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
-    const currentDayIdx = days.indexOf(day);
-    
-    // Identificar el plato actual para no elegir el mismo
-    const currentSlot = weeklyPlan.find(m => m.day === day && m.mealType === mealType);
-    const currentDishId = currentSlot?.dish?.id;
-    
-    // Identificar platos y proteinas usados en otros slots
-    const otherMeals = weeklyPlan.filter(m => !(m.day === day && m.mealType === mealType));
-    const usedDishIds = new Set(otherMeals.map(m => m.dish?.id).filter(Boolean));
-    if (currentDishId) usedDishIds.add(currentDishId); // Forzamos a que elija uno distinto
-    
-    const sameDayProteins = otherMeals.filter(m => m.day === day).map(m => normalizeProtein(m.dish?.protein || ''));
-    const prevDay = currentDayIdx > 0 ? days[currentDayIdx - 1] : null;
-    const prevDayProteins = otherMeals.filter(m => m.day === prevDay).map(m => normalizeProtein(m.dish?.protein || ''));
-    const nextDay = currentDayIdx < days.length - 1 ? days[currentDayIdx + 1] : null;
-    const nextDayProteins = otherMeals.filter(m => m.day === nextDay).map(m => normalizeProtein(m.dish?.protein || ''));
-
-    const getCandidates = (strict: boolean) => {
-      return shuffle(dishes).filter(dish => {
-        if (!dish.mealTypes.includes(mealType)) return false;
-        if (usedDishIds.has(dish.id)) return false;
-
-        const p = normalizeProtein(dish.protein);
-        const isException = p === 'huevo' || p === 'otro';
-
-        // Regla inquebrantable: No repetir en el mismo dia
-        if (sameDayProteins.includes(p)) return false;
-
-        // Regla inquebrantable: Modo Diet (si aplica)
-        if (isDietMode && heavyProteins.includes(p)) {
-          const hasHeavyInDay = sameDayProteins.some(usedP => heavyProteins.includes(usedP));
-          if (hasHeavyInDay) return false;
-        }
-
-        if (strict && !isException) {
-          // En modo estricto evitamos ayer y mañana
-          if (prevDayProteins.includes(p)) return false;
-          if (nextDayProteins.includes(p)) return false;
-        }
-
-        return true;
+  const handleExport = async (format: 'png' | 'gif' | 'png-seq' | 'jpg-seq') => {
+    const zip = new JSZip();
+    const getFrameCanvas = (framePixels: string[]) => {
+      const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext('2d'); if (!ctx) return null;
+      framePixels.forEach((color, index) => {
+        if (color === 'transparent') { if (format === 'jpg-seq') { ctx.fillStyle = '#ffffff'; ctx.fillRect(index % width, Math.floor(index / width), 1, 1); } return; }
+        ctx.fillStyle = color; ctx.fillRect(index % width, Math.floor(index / width), 1, 1);
       });
+      return canvas;
     };
-
-    // Intentar primero con todas las reglas
-    let candidates = getCandidates(true);
-    
-    // Si no hay candidatos, intentamos relajando la regla de ayer/mañana
-    if (candidates.length === 0) {
-      candidates = getCandidates(false);
+    if (format === 'png') {
+      const canvas = getFrameCanvas(frames[currentFrameIndex]); if (!canvas) return;
+      const link = document.createElement('a'); link.download = `frame_${currentFrameIndex + 1}.png`; link.href = canvas.toDataURL('image/png'); link.click();
+    } else if (format === 'png-seq' || format === 'jpg-seq') {
+      const extension = format === 'png-seq' ? 'png' : 'jpg';
+      const mimeType = format === 'png-seq' ? 'image/png' : 'image/jpeg';
+      for (let i = 0; i < frames.length; i++) {
+        const canvas = getFrameCanvas(frames[i]); if (!canvas) continue;
+        const dataUrl = canvas.toDataURL(mimeType).split(',')[1];
+        zip.file(`frame_${String(i + 1).padStart(3, '0')}.${extension}`, dataUrl, { base64: true });
+      }
+      const content = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement('a'); link.download = `animation_sequence_${extension}.zip`; link.href = URL.createObjectURL(content); link.click();
+    } else if (format === 'gif') {
+      try {
+        const workerResponse = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
+        const workerBlob = await workerResponse.blob(); const workerUrl = URL.createObjectURL(workerBlob);
+        const gif = new GIF({ workers: 2, quality: 1, width: width, height: height, workerScript: workerUrl, transparent: 'rgba(0,0,0,0)' });
+        frames.forEach((frame) => { const canvas = getFrameCanvas(frame); if (canvas) gif.addFrame(canvas, { delay: 1000 / fps, copy: true }); });
+        gif.on('finished', (blob: Blob) => { const link = document.createElement('a'); link.download = 'animation.gif'; link.href = URL.createObjectURL(blob); link.click(); URL.revokeObjectURL(workerUrl); });
+        gif.render();
+      } catch (err) { alert('Error al generar el GIF.'); }
     }
+  };
 
-    const choice = candidates[0];
-    if (choice) {
-      setWeeklyPlan(current => current.map(m => 
-        (m.day === day && m.mealType === mealType) ? { ...m, dish: choice } : m
-      ));
-    }
-  }
+  const handleBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader(); reader.onload = (e) => setBgImage(e.target?.result as string); reader.readAsDataURL(file);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); handleUndo(); }
+      else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); handleRedo(); }
+      else if (e.key === 'b') setCurrentTool('brush');
+      else if (e.key === 'e') setCurrentTool('eraser');
+      else if (e.key === 'f') setCurrentTool('fill');
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
 
   return (
-    <div className="app-shell">
-      <header className="hero">
-        <div className="hero__badge">
-          <Icons.ChefHat size={18} />
-          <span>Menu semanal</span>
-        </div>
-        <div className="hero__title-container">
-          <h1 className="hero__title">Menumatic</h1>
-          <div className="particles">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="particle" style={{
-                // Distribucion fija para evitar que se amontonen
-                left: `${(i * 18) + 5}%`, 
-                animationDelay: `${i * 0.8}s`,
-                animationDuration: `${7 + Math.random() * 3}s`
-              }}>
-                {['🍎', '🍕', '🍔', '🥗', '🍗', '🍲'][i]}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="hero__stats">
-          <article><span>Platos</span><strong>{dishes.length}</strong></article>
-          <article><span>Proteinas</span><strong>{proteinCount}</strong></article>
-          <article><span>Almuerzos</span><strong>{lunchCount}</strong></article>
-          <article><span>Cenas</span><strong>{dinnerCount}</strong></article>
-        </div>
+    <div className={`app-container ${darkMode ? 'dark-mode' : ''}`}>
+      <header>
+        <div className="logo-container"><div className="logo">8-BIT ANIMATE</div><span className="signature">by maldo</span></div>
+        <TopMenu onUndo={handleUndo} onRedo={handleRedo} canUndo={canUndo} canRedo={canRedo} onSave={handleSave} onOpen={handleOpen} onExport={handleExport} onNew={handleNew} onImport={() => setIsImporting(true)} showGrid={showGrid} setShowGrid={setShowGrid} zoom={zoom} setZoom={setZoom} darkMode={darkMode} setDarkMode={setDarkMode} audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled} />
       </header>
-
-      <main className="layout">
-        <section className="panel panel--generator">
-          <div className="panel__header">
-            <h2>Semana aleatoria</h2>
-            <div className="panel__actions">
-              <button 
-                className={`button ${isDietMode ? 'button--success' : 'button--ghost'}`} 
-                onClick={(e) => { 
-                  playFeedback(); 
-                  setIsDietMode(!isDietMode); 
-                  triggerToast(`Diet ${!isDietMode ? 'ON' : 'OFF'}`, e);
-                }}
-                title="Solo una carne/pollo/cerdo por dia"
-              >
-                <Icons.Apple size={18} />
-                <span className="button__text">Diet {isDietMode ? 'ON' : 'OFF'}</span>
-              </button>
-              <button 
-                className="button button--primary" 
-                onClick={(e) => { handleGeneratePlan(); triggerToast('Random!', e); }} 
-                title="Generar semana aleatoria"
-              >
-                <Icons.Dices size={18} /> 
-                <span className="button__text">Random</span>
-              </button>
-              <button 
-                className="button button--ghost" 
-                onClick={(e) => { 
-                  playFeedback('trash'); 
-                  setWeeklyPlan(weeklySlots.map(s => ({...s, dish: null}))); 
-                  triggerToast('Limpiado', e);
-                }} 
-                title="Limpiar semana"
-              >
-                <Icons.Trash2 size={18} />
-                <span className="button__text">Limpiar</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="info-strip">
-            {missingSlots.length > 0 ? (
-              <p className="warning">Faltan {missingSlots.length} comidas. Necesitas más proteínas distintas.</p>
-            ) : (
-              <p className="success">¡Semana completa!</p>
-            )}
-          </div>
-
-          <div className="week-grid">
-            <div className="week-grid__header">
-              <span>Almuerzo</span>
-              <span>Cena</span>
-            </div>
-            {['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'].map((day, dayIdx) => (
-              <div key={day} className={`week-day-row ${dayIdx % 2 === 0 ? 'week-day-row--alt' : ''}`}>
-                <span className="week-day-label">{day}</span>
-                {weeklyPlan.filter(m => m.day === day).map((meal, idx) => (
-                  <article className="meal-card" key={`${day}-${idx}`}>
-                    <div className="meal-card__topline" style={{ marginBottom: '4px' }}>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--primary)', fontWeight: 'bold' }}>
-                        {meal.mealType.toUpperCase()}
-                      </span>
-                    </div>
-
-                    {meal.dish ? (
-                      <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '4px' }}>
-                          <h3 style={{ fontSize: '1rem', lineHeight: '1.2', margin: 0 }}>{meal.dish.name}</h3>
-                          <button 
-                            className="button button--ghost icon-button" 
-                            style={{ padding: '4px', borderRadius: '8px', minHeight: 'auto', width: '28px', height: '28px' }}
-                            onClick={() => handleRerollSlot(meal.day, meal.mealType)}
-                            title="Cambiar este plato"
-                          >
-                            <Icons.RotateCw size={14} />
-                          </button>
-                        </div>
-                        <p className="meal-card__protein" style={{ transform: 'scale(0.8)', transformOrigin: 'left', marginTop: '4px' }}>
-                          {meal.dish.protein}
-                        </p>
-                      </>
-                    ) : (
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Sin asignar</p>
-                    )}
-                  </article>
-                ))}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="panel panel--form" ref={formRef}>
-          <h2>{editingDishId ? 'Editar plato' : 'Nuevo plato'}</h2>
-          <form className="dish-form" onSubmit={handleSaveDish}>
-            <label className="field"><span>Nombre</span><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Ej: Tarta de atun" /></label>
-            <label className="field">
-              <span>Proteina principal</span>
-              <select
-                value={form.protein}
-                onChange={(e) => setForm({ ...form, protein: e.target.value })}
-              >
-                <option value="Carne">Carne</option>
-                <option value="Pollo">Pollo</option>
-                <option value="Cerdo">Cerdo</option>
-                <option value="Pescado">Pescado</option>
-                <option value="Huevo">Huevo</option>
-                <option value="Otro">Otro</option>
-              </select>
-            </label>
-            <label className="field"><span>Momento</span>
-              <select value={form.mealType} onChange={e => setForm({...form, mealType: e.target.value as any})}>
-                <option value="ambos">Almuerzo y cena</option>
-                <option value="almuerzo">Solo almuerzo</option>
-                <option value="cena">Solo cena</option>
-              </select>
-            </label>
-            <label className="field field--full"><span>Notas</span><textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} rows={2} /></label>
-            <div className="panel__actions" style={{ marginTop: '10px' }}>
-              <button className="button button--primary" type="submit">
-                {editingDishId ? <Icons.Save size={18} /> : <Icons.Plus size={18} />}
-                {editingDishId ? 'Actualizar' : 'Guardar'}
-              </button>
-              {editingDishId && (
-                <button className="button button--ghost" type="button" onClick={handleCancelEdit}>
-                  Cancelar
-                </button>
-              )}
-            </div>
-          </form>
-        </section>
-
-        <section className="panel panel--full">
-          <h2>Biblioteca de platos</h2>
-          <div className="dish-list">
-            {dishes.map((dish) => (
-              <article className="dish-card" key={dish.id}>
-                <div className="dish-card__content">
-                  <h3>{dish.name}</h3>
-                  <span className="protein-pill">{dish.protein}</span>
-                  <p className="dish-card__meta">{dish.mealTypes.join(' y ')}</p>
-                </div>
-                <div className="dish-card__actions" style={{ display: 'flex', gap: '8px' }}>
-                  <button className="button button--ghost" onClick={() => handleEditClick(dish)}>
-                    <Icons.Edit3 size={18} />
-                  </button>
-                  <button className="button button--ghost button--danger" onClick={() => handleDeleteDish(dish.id)}>
-                    <Icons.Trash2 size={18} />
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      </main>
-
-      {toasts.map(toast => (
-        <div key={toast.id} className="toast-float" style={{ left: toast.x, top: toast.y }}>
-          {toast.text}
+      <main>
+        <Toolbar currentTool={currentTool} setTool={setCurrentTool} currentColor={currentColor} setColor={setCurrentColor} />
+        <div className="editor-area">
+          <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={frames} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={playSingleNote} />
         </div>
-      ))}
+        {isImporting && <ImageImporter width={width} height={height} palette={FULL_PALETTE} onImport={handleImport} onCancel={() => setIsImporting(false)} />}
+        <aside className="info-panel">
+          <h3>Información</h3><p>Frames: {frames.length} / {MAX_FRAMES}</p><p>Frame actual: {currentFrameIndex + 1}</p><p>Lienzo: {width} x {height}</p>
+          <div className="shift-controls"><h3>Mover Capa</h3><div className="shift-cross"><button className="up" onClick={() => shiftPixels(0, -1)}>⬆️</button><button className="left" onClick={() => shiftPixels(-1, 0)}>⬅️</button><button className="right" onClick={() => shiftPixels(1, 0)}>➡️</button><button className="down" onClick={() => shiftPixels(0, 1)}>⬇️</button></div></div>
+          <div className="bg-panel"><h3>Imagen Referencia</h3>{!bgImage ? ( <input type="file" accept="image/*" onChange={handleBgUpload} /> ) : ( <div className="bg-controls"><button className={isEditingBg ? 'active' : ''} onClick={() => setIsEditingBg(!isEditingBg)}>{isEditingBg ? '✅ Guardar' : '🎯 Ajustar'}</button><label>Opacidad: <input type="range" min="0" max="1" step="0.1" value={bgTransform.opacity} onChange={e => setBgTransform({...bgTransform, opacity: parseFloat(e.target.value)})} /></label><label>Zoom: <input type="range" min="0.1" max="5" step="0.1" value={bgTransform.scale} onChange={e => setBgTransform({...bgTransform, scale: parseFloat(e.target.value)})} /></label><label>Girar: <input type="range" min="0" max="360" step="1" value={bgTransform.rotation} onChange={e => setBgTransform({...bgTransform, rotation: parseInt(e.target.value)})} /></label><button onClick={() => setBgImage(null)} className="danger">Quitar</button></div> )}</div>
+          <div className="shortcuts"><p><strong>B</strong>: Pincel | <strong>E</strong>: Goma</p><p><strong>F</strong>: Relleno | <strong>Alt+Click</strong>: Gotero</p></div>
+        </aside>
+      </main>
+      <Timeline frames={frames} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex} addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame} isPlaying={isPlaying} setIsPlaying={setIsPlaying} fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin} moveFrame={moveFrame} />
     </div>
   );
 }
