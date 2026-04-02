@@ -22,7 +22,7 @@ const SCALES = {
   PHRYGIAN: [0, 1, 3, 5, 7, 8, 10]
 };
 
-const BASE_FREQ = 65.41; // C2
+const BASE_FREQ = 65.41;
 
 const generateScaleFreqs = (steps: number[]) => {
   const freqs: number[] = [];
@@ -45,6 +45,23 @@ const SCALE_FREQS = {
 interface BgTransform {
   x: number; y: number; scale: number; rotation: number; opacity: number;
 }
+
+const getNeighborsCount = (pixels: string[], index: number, width: number, height: number, color: string) => {
+  const x = index % width;
+  const y = Math.floor(index / width);
+  let neighbors = 0;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+        if (pixels[ny * width + nx] === color) neighbors++;
+      }
+    }
+  }
+  return neighbors;
+};
 
 function App() {
   const [width, setWidth] = useState(DEFAULT_WIDTH);
@@ -69,13 +86,11 @@ function App() {
   const [darkMode, setDarkMode] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
 
-  // Audio Refs
   const audioCtx = useRef<AudioContext | null>(null);
   const delayNode = useRef<DelayNode | null>(null);
   const feedbackNode = useRef<GainNode | null>(null);
   const filterNode = useRef<BiquadFilterNode | null>(null);
 
-  // Background Image State
   const [bgImage, setBgImage] = useState<string | null>(null);
   const [isEditingBg, setIsEditingBg] = useState(false);
   const [bgTransform, setBgTransform] = useState<BgTransform>({
@@ -88,18 +103,15 @@ function App() {
     const dNode = ctx.createDelay(3.0);
     const fNode = ctx.createGain();
     const lpfNode = ctx.createBiquadFilter();
-    
     lpfNode.type = 'lowpass';
-    lpfNode.frequency.value = 1000;
+    lpfNode.frequency.value = 1200;
     lpfNode.Q.value = 0.7;
     dNode.delayTime.value = 0.5;
-    fNode.gain.value = 0.4;
-
+    fNode.gain.value = 0.3;
     dNode.connect(fNode);
     fNode.connect(dNode);
     dNode.connect(lpfNode);
     lpfNode.connect(ctx.destination);
-
     audioCtx.current = ctx;
     delayNode.current = dNode;
     feedbackNode.current = fNode;
@@ -148,46 +160,47 @@ function App() {
     return avgS > 0.4 ? SCALE_FREQS.MINOR : SCALE_FREQS.DARK;
   }, []);
 
-  const playSingleNote = useCallback((row: number, color: string, xPos: number, volumeFactor = 1) => {
+  const playSingleNote = useCallback((row: number, color: string, xPos: number, volumeFactor = 1, colorDensity = 1) => {
     if (!audioEnabled || !color || color === 'transparent' || color.toLowerCase() === '#ffffff') return;
     const ctx = initAudio();
     if (ctx.state === 'suspended') ctx.resume();
-
     const info = getHexInfo(color);
-    const currentScale = getResultantScale(framesRef.current[currentFrameIndex]);
+    const framePixels = framesRef.current[currentFrameIndex];
+    const currentScale = getResultantScale(framePixels);
     const noteFreq = currentScale[31 - row] || 440;
-    
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     const pan = ctx.createStereoPanner();
-
     osc.type = getWaveformByColor(color);
     osc.frequency.setValueAtTime(noteFreq, ctx.currentTime);
     pan.pan.setValueAtTime((xPos / width) * 2 - 1, ctx.currentTime);
-
     const volume = 0.05 * volumeFactor;
     const attackTime = 0.2 * (1 - info.s) + 0.005;
-
+    
+    // NEW DECAY LOGIC
+    const neighbors = getNeighborsCount(framePixels, row * width + xPos, width, height, color);
+    const decayTime = Math.min(2.0, 0.2 + (neighbors * 0.2) + (colorDensity / 100));
+    
     gain.gain.setValueAtTime(0, ctx.currentTime);
     gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + attackTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
-
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + decayTime);
     osc.connect(pan);
     pan.connect(gain);
     if (filterNode.current) gain.connect(filterNode.current);
     if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
-    
     osc.start();
-    osc.stop(ctx.currentTime + 0.5);
-  }, [audioEnabled, initAudio, width, onionSkin, currentFrameIndex, getResultantScale]);
+    osc.stop(ctx.currentTime + decayTime + 0.1);
+  }, [audioEnabled, initAudio, width, height, onionSkin, currentFrameIndex, getResultantScale]);
 
   const playFrameSound = useCallback((framePixels: string[]) => {
     const pixelsByRow: Map<number, {color: string, x: number}[]> = new Map();
+    const colorCounts: Map<string, number> = new Map();
     framePixels.forEach((color, i) => {
       if (color !== 'transparent' && color.toLowerCase() !== '#ffffff') {
         const row = Math.floor(i / width);
         if (!pixelsByRow.has(row)) pixelsByRow.set(row, []);
         pixelsByRow.get(row)!.push({color, x: i % width});
+        colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
       }
     });
     const activeRows = Array.from(pixelsByRow.keys());
@@ -197,9 +210,34 @@ function App() {
     const selectedRows = activeRows.sort(() => 0.5 - Math.random()).slice(0, maxNotes);
     selectedRows.forEach(row => {
       const data = pixelsByRow.get(row)![0];
-      playSingleNote(row, data.color, data.x, 0.6);
+      const density = colorCounts.get(data.color) || 1;
+      const noteFreq = currentScale[31 - row] || 440;
+      const ctx = initAudio();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const pan = ctx.createStereoPanner();
+      osc.type = getWaveformByColor(data.color);
+      osc.frequency.setValueAtTime(noteFreq, ctx.currentTime);
+      pan.pan.setValueAtTime((data.x / width) * 2 - 1, ctx.currentTime);
+      const volume = 0.03;
+      const info = getHexInfo(data.color);
+      const attackTime = 0.2 * (1 - info.s) + 0.005;
+      
+      // NEW DECAY LOGIC
+      const neighbors = getNeighborsCount(framePixels, row * width + data.x, width, height, data.color);
+      const decayTime = Math.min(2.0, 0.2 + (neighbors * 0.2) + (density / 100));
+      
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + attackTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + decayTime);
+      osc.connect(pan);
+      pan.connect(gain);
+      if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + decayTime + 0.1);
     });
-  }, [playSingleNote, width, getResultantScale]);
+  }, [initAudio, width, height, onionSkin, getResultantScale]);
 
   useEffect(() => {
     let interval: number | undefined;
@@ -216,128 +254,25 @@ function App() {
   }, [isPlaying, fps, playFrameSound]);
 
   const pixels = frames[currentFrameIndex];
-  const updatePixels = (newPixels: string[]) => {
+  const updatePixels = (newPixels: string[]) => { const newFrames = [...frames]; newFrames[currentFrameIndex] = newPixels; setFrames(newFrames); };
+  const handleImport = (importedPixels: string[]) => { const newFrames = [...frames]; newFrames[currentFrameIndex] = importedPixels; setFrames(newFrames); pushState(newFrames); setIsImporting(false); };
+  const handleHistoryPush = (pixelsToPush: string[]) => { const newFrames = [...frames]; newFrames[currentFrameIndex] = pixelsToPush; pushState(newFrames); };
+  const handleUndo = () => { const prevState = undo(); if (prevState) { setFrames(prevState); if (currentFrameIndex >= prevState.length) setCurrentFrameIndex(prevState.length - 1); } };
+  const handleRedo = () => { const nextState = redo(); if (nextState) { setFrames(nextState); if (currentFrameIndex >= nextState.length) setCurrentFrameIndex(nextState.length - 1); } };
+  const handleNew = () => { if (confirm('¿Estás seguro?')) { const emptyFrames = [Array(width * height).fill('transparent')]; setFrames(emptyFrames); setCurrentFrameIndex(0); reset(emptyFrames); } };
+  const handleSave = () => { const data = JSON.stringify({ width, height, frames, bgImage, bgTransform }); const blob = new Blob([data], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'pixel-art-animation.json'; link.click(); };
+  const handleOpen = () => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.json'; input.onchange = (e) => { const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { try { const content = JSON.parse(e.target?.result as string); setWidth(content.width); setHeight(content.height); if (content.frames) { setFrames(content.frames); reset(content.frames); } if (content.bgImage) setBgImage(content.bgImage); if (content.bgTransform) setBgTransform(content.bgTransform); setCurrentFrameIndex(0); } catch (err) { alert('Error al abrir el archivo.'); } }; reader.readAsText(file); }; input.click(); };
+  const addFrame = () => { if (frames.length >= MAX_FRAMES) return; const newFrames = [...frames]; const emptyFrame = Array(width * height).fill('transparent'); newFrames.splice(currentFrameIndex + 1, 0, emptyFrame); setFrames(newFrames); setCurrentFrameIndex(currentFrameIndex + 1); pushState(newFrames); };
+  const duplicateFrame = () => { if (frames.length >= MAX_FRAMES) return; const newFrames = [...frames]; const duplicatedFrame = [...frames[currentFrameIndex]]; newFrames.splice(currentFrameIndex + 1, 0, duplicatedFrame); setFrames(newFrames); setCurrentFrameIndex(currentFrameIndex + 1); pushState(newFrames); };
+  const removeFrame = () => { if (frames.length <= 1) return; const newFrames = frames.filter((_, i) => i !== currentFrameIndex); setFrames(newFrames); setCurrentFrameIndex(Math.max(0, currentFrameIndex - 1)); pushState(newFrames); };
+  const shiftPixels = (dx: number, dy: number) => { const newPixels = Array(width * height).fill('transparent'); const currentPixels = frames[currentFrameIndex]; for (let y = 0; y < height; y++) { for (let x = 0; x < width; x++) { const nx = x + dx; const ny = y + dy; if (nx >= 0 && nx < width && ny >= 0 && ny < height) { newPixels[ny * width + nx] = currentPixels[y * width + x]; } } } const newFrames = [...frames]; newFrames[currentFrameIndex] = newPixels; setFrames(newFrames); pushState(newFrames); };
+
+  const moveFrame = (fromIndex: number, toIndex: number) => {
     const newFrames = [...frames];
-    newFrames[currentFrameIndex] = newPixels;
+    const [movedFrame] = newFrames.splice(fromIndex, 1);
+    newFrames.splice(toIndex, 0, movedFrame);
     setFrames(newFrames);
-  };
-
-  const handleImport = (importedPixels: string[]) => {
-    const newFrames = [...frames];
-    newFrames[currentFrameIndex] = importedPixels;
-    setFrames(newFrames);
-    pushState(newFrames);
-    setIsImporting(false);
-  };
-
-  const handleHistoryPush = (pixelsToPush: string[]) => {
-    const newFrames = [...frames];
-    newFrames[currentFrameIndex] = pixelsToPush;
-    pushState(newFrames);
-  };
-
-  const handleUndo = () => {
-    const prevState = undo();
-    if (prevState) {
-      setFrames(prevState);
-      if (currentFrameIndex >= prevState.length) setCurrentFrameIndex(prevState.length - 1);
-    }
-  };
-
-  const handleRedo = () => {
-    const nextState = redo();
-    if (nextState) {
-      setFrames(nextState);
-      if (currentFrameIndex >= nextState.length) setCurrentFrameIndex(nextState.length - 1);
-    }
-  };
-
-  const handleNew = () => {
-    if (confirm('¿Estás seguro?')) {
-      const emptyFrames = [Array(width * height).fill('transparent')];
-      setFrames(emptyFrames);
-      setCurrentFrameIndex(0);
-      reset(emptyFrames);
-    }
-  };
-
-  const handleSave = () => {
-    const data = JSON.stringify({ width, height, frames, bgImage, bgTransform });
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'pixel-art-animation.json';
-    link.click();
-  };
-
-  const handleOpen = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const content = JSON.parse(e.target?.result as string);
-          setWidth(content.width);
-          setHeight(content.height);
-          if (content.frames) { setFrames(content.frames); reset(content.frames); }
-          if (content.bgImage) setBgImage(content.bgImage);
-          if (content.bgTransform) setBgTransform(content.bgTransform);
-          setCurrentFrameIndex(0);
-        } catch (err) { alert('Error al abrir el archivo.'); }
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  };
-
-  const addFrame = () => {
-    if (frames.length >= MAX_FRAMES) return;
-    const newFrames = [...frames];
-    const emptyFrame = Array(width * height).fill('transparent');
-    newFrames.splice(currentFrameIndex + 1, 0, emptyFrame);
-    setFrames(newFrames);
-    setCurrentFrameIndex(currentFrameIndex + 1);
-    pushState(newFrames);
-  };
-
-  const duplicateFrame = () => {
-    if (frames.length >= MAX_FRAMES) return;
-    const newFrames = [...frames];
-    const duplicatedFrame = [...frames[currentFrameIndex]];
-    newFrames.splice(currentFrameIndex + 1, 0, duplicatedFrame);
-    setFrames(newFrames);
-    setCurrentFrameIndex(currentFrameIndex + 1);
-    pushState(newFrames);
-  };
-
-  const removeFrame = () => {
-    if (frames.length <= 1) return;
-    const newFrames = frames.filter((_, i) => i !== currentFrameIndex);
-    setFrames(newFrames);
-    setCurrentFrameIndex(Math.max(0, currentFrameIndex - 1));
-    pushState(newFrames);
-  };
-
-  const shiftPixels = (dx: number, dy: number) => {
-    const newPixels = Array(width * height).fill('transparent');
-    const currentPixels = frames[currentFrameIndex];
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-          newPixels[ny * width + nx] = currentPixels[y * width + x];
-        }
-      }
-    }
-    const newFrames = [...frames];
-    newFrames[currentFrameIndex] = newPixels;
-    setFrames(newFrames);
+    setCurrentFrameIndex(toIndex);
     pushState(newFrames);
   };
 
@@ -369,20 +304,9 @@ function App() {
       try {
         const workerResponse = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
         const workerBlob = await workerResponse.blob(); const workerUrl = URL.createObjectURL(workerBlob);
-        const gif = new GIF({
-          workers: 2, quality: 1, width: width, height: height, workerScript: workerUrl, transparent: 'rgba(0,0,0,0)'
-        });
-        frames.forEach((frame) => {
-          const canvas = getFrameCanvas(frame);
-          if (canvas) gif.addFrame(canvas, { delay: 1000 / fps, copy: true });
-        });
-        gif.on('finished', (blob: Blob) => {
-          const link = document.createElement('a');
-          link.download = 'animation.gif';
-          link.href = URL.createObjectURL(blob);
-          link.click();
-          URL.revokeObjectURL(workerUrl);
-        });
+        const gif = new GIF({ workers: 2, quality: 1, width: width, height: height, workerScript: workerUrl, transparent: 'rgba(0,0,0,0)' });
+        frames.forEach((frame) => { const canvas = getFrameCanvas(frame); if (canvas) gif.addFrame(canvas, { delay: 1000 / fps, copy: true }); });
+        gif.on('finished', (blob: Blob) => { const link = document.createElement('a'); link.download = 'animation.gif'; link.href = URL.createObjectURL(blob); link.click(); URL.revokeObjectURL(workerUrl); });
         gif.render();
       } catch (err) { alert('Error al generar el GIF.'); }
     }
@@ -390,9 +314,7 @@ function App() {
 
   const handleBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => setBgImage(e.target?.result as string);
-    reader.readAsDataURL(file);
+    const reader = new FileReader(); reader.onload = (e) => setBgImage(e.target?.result as string); reader.readAsDataURL(file);
   };
 
   useEffect(() => {
@@ -413,81 +335,20 @@ function App() {
         <div className="logo-container"><div className="logo">8-BIT ANIMATE</div><span className="signature">by maldo</span></div>
         <TopMenu onUndo={handleUndo} onRedo={handleRedo} canUndo={canUndo} canRedo={canRedo} onSave={handleSave} onOpen={handleOpen} onExport={handleExport} onNew={handleNew} onImport={() => setIsImporting(true)} showGrid={showGrid} setShowGrid={setShowGrid} zoom={zoom} setZoom={setZoom} darkMode={darkMode} setDarkMode={setDarkMode} audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled} />
       </header>
-      
       <main>
         <Toolbar currentTool={currentTool} setTool={setCurrentTool} currentColor={currentColor} setColor={setCurrentColor} />
-        
         <div className="editor-area">
-          <PixelCanvas 
-            pixels={pixels} setPixels={updatePixels} width={width} height={height}
-            color={currentColor} setColor={setCurrentColor} tool={currentTool}
-            zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo}
-            onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex}
-            frames={frames} onionSkin={onionSkin}
-            bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform}
-            isEditingBg={isEditingBg}
-            isPlaying={isPlaying}
-            playPixelSound={playSingleNote}
-          />
+          <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={frames} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={playSingleNote} />
         </div>
-
         {isImporting && <ImageImporter width={width} height={height} palette={FULL_PALETTE} onImport={handleImport} onCancel={() => setIsImporting(false)} />}
-
         <aside className="info-panel">
-          <h3>Información</h3>
-          <p>Frames: {frames.length} / {MAX_FRAMES}</p>
-          <p>Frame actual: {currentFrameIndex + 1}</p>
-          <p>Lienzo: {width} x {height}</p>
-
-          <div className="shift-controls">
-            <h3>Mover Capa</h3>
-            <div className="shift-cross">
-              <button className="up" onClick={() => shiftPixels(0, -1)}>⬆️</button>
-              <button className="left" onClick={() => shiftPixels(-1, 0)}>⬅️</button>
-              <button className="right" onClick={() => shiftPixels(1, 0)}>➡️</button>
-              <button className="down" onClick={() => shiftPixels(0, 1)}>⬇️</button>
-            </div>
-          </div>
-
-          <div className="bg-panel">
-            <h3>Imagen Referencia</h3>
-            {!bgImage ? (
-              <input type="file" accept="image/*" onChange={handleBgUpload} />
-            ) : (
-              <div className="bg-controls">
-                <button 
-                  className={isEditingBg ? 'active' : ''} 
-                  onClick={() => setIsEditingBg(!isEditingBg)}
-                >
-                  {isEditingBg ? '✅ Guardar' : '🎯 Ajustar'}
-                </button>
-                <label>Opacidad: 
-                  <input type="range" min="0" max="1" step="0.1" value={bgTransform.opacity} onChange={e => setBgTransform({...bgTransform, opacity: parseFloat(e.target.value)})} />
-                </label>
-                <label>Zoom: 
-                  <input type="range" min="0.1" max="5" step="0.1" value={bgTransform.scale} onChange={e => setBgTransform({...bgTransform, scale: parseFloat(e.target.value)})} />
-                </label>
-                <label>Girar: 
-                  <input type="range" min="0" max="360" step="1" value={bgTransform.rotation} onChange={e => setBgTransform({...bgTransform, rotation: parseInt(e.target.value)})} />
-                </label>
-                <button onClick={() => setBgImage(null)} className="danger">Quitar</button>
-              </div>
-            )}
-          </div>
-
-          <div className="shortcuts">
-            <p><strong>B</strong>: Pincel | <strong>E</strong>: Goma</p>
-            <p><strong>F</strong>: Relleno | <strong>Alt+Click</strong>: Gotero</p>
-          </div>
+          <h3>Información</h3><p>Frames: {frames.length} / {MAX_FRAMES}</p><p>Frame actual: {currentFrameIndex + 1}</p><p>Lienzo: {width} x {height}</p>
+          <div className="shift-controls"><h3>Mover Capa</h3><div className="shift-cross"><button className="up" onClick={() => shiftPixels(0, -1)}>⬆️</button><button className="left" onClick={() => shiftPixels(-1, 0)}>⬅️</button><button className="right" onClick={() => shiftPixels(1, 0)}>➡️</button><button className="down" onClick={() => shiftPixels(0, 1)}>⬇️</button></div></div>
+          <div className="bg-panel"><h3>Imagen Referencia</h3>{!bgImage ? ( <input type="file" accept="image/*" onChange={handleBgUpload} /> ) : ( <div className="bg-controls"><button className={isEditingBg ? 'active' : ''} onClick={() => setIsEditingBg(!isEditingBg)}>{isEditingBg ? '✅ Guardar' : '🎯 Ajustar'}</button><label>Opacidad: <input type="range" min="0" max="1" step="0.1" value={bgTransform.opacity} onChange={e => setBgTransform({...bgTransform, opacity: parseFloat(e.target.value)})} /></label><label>Zoom: <input type="range" min="0.1" max="5" step="0.1" value={bgTransform.scale} onChange={e => setBgTransform({...bgTransform, scale: parseFloat(e.target.value)})} /></label><label>Girar: <input type="range" min="0" max="360" step="1" value={bgTransform.rotation} onChange={e => setBgTransform({...bgTransform, rotation: parseInt(e.target.value)})} /></label><button onClick={() => setBgImage(null)} className="danger">Quitar</button></div> )}</div>
+          <div className="shortcuts"><p><strong>B</strong>: Pincel | <strong>E</strong>: Goma</p><p><strong>F</strong>: Relleno | <strong>Alt+Click</strong>: Gotero</p></div>
         </aside>
       </main>
-
-      <Timeline 
-        frames={frames} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex}
-        addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame}
-        isPlaying={isPlaying} setIsPlaying={setIsPlaying}
-        fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin}
-      />
+      <Timeline frames={frames} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex} addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame} isPlaying={isPlaying} setIsPlaying={setIsPlaying} fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin} moveFrame={moveFrame} />
     </div>
   );
 }

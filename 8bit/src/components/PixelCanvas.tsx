@@ -29,7 +29,7 @@ interface PixelCanvasProps {
   setBgTransform?: (transform: BgTransform) => void;
   isEditingBg?: boolean;
   isPlaying?: boolean;
-  playPixelSound?: (row: number, color: string, xPos: number, volumeFactor: number) => void;
+  playPixelSound?: (row: number, color: string, xPos: number, volumeFactor: number, colorDensity: number) => void;
 }
 
 const PixelCanvas: React.FC<PixelCanvasProps> = ({
@@ -111,7 +111,12 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     if (currentTool === 'brush') {
       if (newPixels[index] === color) return;
       newPixels[index] = color;
-      if (playPixelSound) playPixelSound(Math.floor(index / width), color, index % width, 1.2);
+      
+      if (playPixelSound) {
+        // Count current density of this color
+        const density = newPixels.filter(c => c === color).length;
+        playPixelSound(Math.floor(index / width), color, index % width, 1.2, density);
+      }
     } else if (currentTool === 'eraser') {
       if (newPixels[index] === 'transparent') return;
       newPixels[index] = 'transparent';
@@ -148,7 +153,6 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     if (index !== -1) {
       setIsDrawing(true);
       setActiveButton(e.button);
-      setLastPixelIndex(index);
       const toolToUse = (e.altKey && e.button === 0) ? 'eyedropper' : (e.button === 2 ? 'eraser' : tool);
       handleAction(index, toolToUse);
     }
@@ -160,7 +164,6 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       return;
     }
     const index = getPixelIndex(e.clientX, e.clientY);
-    if (index !== -1) setLastPixelIndex(index);
     if (isDrawing && activeButton !== null) {
       const toolToUse = (e.altKey && activeButton === 0) ? 'eyedropper' : (activeButton === 2 ? 'eraser' : tool);
       if (toolToUse === 'brush' || toolToUse === 'eraser') handleAction(index, toolToUse);
@@ -170,11 +173,9 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
   const handleMouseUp = () => {
     setIsDrawing(false);
     setActiveButton(null);
-    setLastPixelIndex(-1);
     if (!isEditingBg) onHistoryPush(pixels);
   };
 
-  // Recording logic: Now depends on isPlaying instead of isRecording
   useEffect(() => {
     if (isDrawing && isPlaying && lastPixelIndex !== -1 && activeButton !== null) {
       const effectiveTool = (activeButton === 2) ? 'eraser' : tool;

@@ -15,6 +15,7 @@ interface TimelineProps {
   height: number;
   onionSkin: number;
   setOnionSkin: (count: number) => void;
+  moveFrame: (from: number, to: number) => void;
 }
 
 const Timeline: React.FC<TimelineProps> = ({
@@ -31,13 +32,29 @@ const Timeline: React.FC<TimelineProps> = ({
   width,
   height,
   onionSkin,
-  setOnionSkin
+  setOnionSkin,
+  moveFrame
 }) => {
   const toggleOnionSkin = () => {
     const sequence = [0, 1, 2, 3, 4];
     const currentIndex = sequence.indexOf(onionSkin);
     const nextIndex = (currentIndex + 1) % sequence.length;
     setOnionSkin(sequence[nextIndex]);
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.setData('fromIndex', index.toString());
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, toIndex: number) => {
+    const fromIndex = parseInt(e.dataTransfer.getData('fromIndex'));
+    if (fromIndex !== toIndex) {
+      moveFrame(fromIndex, toIndex);
+    }
   };
 
   return (
@@ -76,6 +93,10 @@ const Timeline: React.FC<TimelineProps> = ({
             key={index}
             className={`frame-thumbnail ${index === currentFrameIndex ? 'selected' : ''}`}
             onClick={() => setCurrentFrameIndex(index)}
+            draggable
+            onDragStart={(e) => handleDragStart(e, index)}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, index)}
           >
             <div className="frame-number">{index + 1}</div>
             <MiniCanvas pixels={frame} width={width} height={height} />
