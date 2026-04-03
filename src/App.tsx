@@ -92,6 +92,7 @@ function App() {
   const delayNode = useRef<DelayNode | null>(null);
   const feedbackNode = useRef<GainNode | null>(null);
   const filterNode = useRef<BiquadFilterNode | null>(null);
+  const masterGain = useRef<GainNode | null>(null);
 
   const [bgImage, setBgImage] = useState<string | null>(null);
   const [isEditingBg, setIsEditingBg] = useState(false);
@@ -102,6 +103,11 @@ function App() {
   const initAudio = useCallback(() => {
     if (audioCtx.current) return audioCtx.current;
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    
+    const mGain = ctx.createGain();
+    mGain.connect(ctx.destination);
+    masterGain.current = mGain;
+
     const dNode = ctx.createDelay(3.0);
     const fNode = ctx.createGain();
     const lpfNode = ctx.createBiquadFilter();
@@ -113,7 +119,7 @@ function App() {
     dNode.connect(fNode);
     fNode.connect(dNode);
     dNode.connect(lpfNode);
-    lpfNode.connect(ctx.destination);
+    lpfNode.connect(mGain);
     audioCtx.current = ctx;
     delayNode.current = dNode;
     feedbackNode.current = fNode;
@@ -189,6 +195,7 @@ function App() {
     pan.connect(gain);
     if (filterNode.current) gain.connect(filterNode.current);
     if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
+    gain.connect(masterGain.current || ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + decayTime + 0.1);
   }, [audioEnabled, initAudio, width, height, onionSkin, currentFrameIndex, getResultantScale]);
@@ -233,7 +240,7 @@ function App() {
       osc.connect(pan);
       pan.connect(gain);
       if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
-      gain.connect(ctx.destination);
+      gain.connect(masterGain.current || ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + decayTime + 0.1);
     });
@@ -378,13 +385,27 @@ function App() {
       recordCanvas.height = exportHeight;
       const recordCtx = recordCanvas.getContext('2d')!;
       
-      const stream = recordCanvas.captureStream(fps);
+      const ctx = initAudio();
+      const audioDest = ctx.createMediaStreamDestination();
+      if (masterGain.current) {
+        masterGain.current.connect(audioDest);
+      }
+
+      const canvasStream = recordCanvas.captureStream(fps);
+      const combinedStream = new MediaStream([
+        ...canvasStream.getVideoTracks(),
+        ...audioDest.stream.getAudioTracks()
+      ]);
+
       const mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm';
-      const mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 5000000 });
+      const mediaRecorder = new MediaRecorder(combinedStream, { mimeType, videoBitsPerSecond: 5000000 });
       const chunks: Blob[] = [];
 
       mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
       mediaRecorder.onstop = () => {
+        if (masterGain.current) {
+          masterGain.current.disconnect(audioDest);
+        }
         const blob = new Blob(chunks, { type: mimeType });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -397,6 +418,7 @@ function App() {
 
       const duration = 6000; // 6 seconds
       const startTime = Date.now();
+      let lastFrameIdx = -1;
       
       const renderLoop = () => {
         const elapsed = Date.now() - startTime;
@@ -409,6 +431,11 @@ function App() {
         const frameDuration = 1000 / fps;
         const currentFrameIdx = Math.floor((elapsed / frameDuration) % totalFramesInAnimation);
         
+        if (currentFrameIdx !== lastFrameIdx) {
+          playFrameSound(frames[currentFrameIdx]);
+          lastFrameIdx = currentFrameIdx;
+        }
+
         const frameCanvas = getFrameCanvas(frames[currentFrameIdx], exportWidth, exportHeight);
         if (frameCanvas) {
           recordCtx.clearRect(0, 0, exportWidth, exportHeight);
