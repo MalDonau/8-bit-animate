@@ -7,7 +7,7 @@ interface TopMenuProps {
   canRedo: boolean;
   onSave: () => void;
   onOpen: () => void;
-  onExport: (format: 'png' | 'gif' | 'png-seq' | 'jpg-seq') => void;
+  onExport: (format: 'png' | 'gif' | 'mp4' | 'png-seq' | 'jpg-seq') => void;
   onNew: () => void;
   onImport: () => void;
   showGrid: boolean;
@@ -46,6 +46,7 @@ const TopMenu: React.FC<TopMenuProps> = ({
           </button>
           {showExportMenu && (
             <div className="dropdown-content">
+              <button onClick={() => { onExport('mp4'); setShowExportMenu(false); }}>Video MP4 (6s Loop)</button>
               <button onClick={() => { onExport('gif'); setShowExportMenu(false); }}>GIF Animado</button>
               <button onClick={() => { onExport('png-seq'); setShowExportMenu(false); }}>Secuencia PNG (ZIP)</button>
               <button onClick={() => { onExport('jpg-seq'); setShowExportMenu(false); }}>Secuencia JPG (ZIP)</button>

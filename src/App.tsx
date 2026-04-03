@@ -326,14 +326,25 @@ function App() {
     pushState(newFrames);
   };
 
-  const handleExport = async (format: 'png' | 'gif' | 'png-seq' | 'jpg-seq') => {
+  const handleExport = async (format: 'png' | 'gif' | 'mp4' | 'png-seq' | 'jpg-seq') => {
     const zip = new JSZip();
-    const getFrameCanvas = (framePixels: string[]) => {
-      const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+    const getFrameCanvas = (framePixels: string[], exportWidth = width, exportHeight = height) => {
+      const canvas = document.createElement('canvas'); canvas.width = exportWidth; canvas.height = exportHeight;
       const ctx = canvas.getContext('2d'); if (!ctx) return null;
+      const pixelSizeX = exportWidth / width;
+      const pixelSizeY = exportHeight / height;
       framePixels.forEach((color, index) => {
-        if (color === 'transparent') { if (format === 'jpg-seq') { ctx.fillStyle = '#ffffff'; ctx.fillRect(index % width, Math.floor(index / width), 1, 1); } return; }
-        ctx.fillStyle = color; ctx.fillRect(index % width, Math.floor(index / width), 1, 1);
+        const x = index % width;
+        const y = Math.floor(index / width);
+        if (color === 'transparent') { 
+          if (format === 'jpg-seq' || format === 'mp4') { 
+            ctx.fillStyle = '#ffffff'; 
+            ctx.fillRect(x * pixelSizeX, y * pixelSizeY, pixelSizeX, pixelSizeY); 
+          } 
+          return; 
+        }
+        ctx.fillStyle = color; 
+        ctx.fillRect(x * pixelSizeX, y * pixelSizeY, pixelSizeX, pixelSizeY);
       });
       return canvas;
     };
@@ -359,6 +370,55 @@ function App() {
         gif.on('finished', (blob: Blob) => { const link = document.createElement('a'); link.download = `${projectName}.gif`; link.href = URL.createObjectURL(blob); link.click(); URL.revokeObjectURL(workerUrl); });
         gif.render();
       } catch (err) { alert('Error al generar el GIF.'); }
+    } else if (format === 'mp4') {
+      const exportWidth = 512;
+      const exportHeight = 512;
+      const recordCanvas = document.createElement('canvas');
+      recordCanvas.width = exportWidth;
+      recordCanvas.height = exportHeight;
+      const recordCtx = recordCanvas.getContext('2d')!;
+      
+      const stream = recordCanvas.captureStream(fps);
+      const mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm';
+      const mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 5000000 });
+      const chunks: Blob[] = [];
+
+      mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${projectName}.${mimeType === 'video/mp4' ? 'mp4' : 'webm'}`;
+        link.click();
+      };
+
+      mediaRecorder.start();
+
+      const duration = 6000; // 6 seconds
+      const startTime = Date.now();
+      
+      const renderLoop = () => {
+        const elapsed = Date.now() - startTime;
+        if (elapsed >= duration) {
+          mediaRecorder.stop();
+          return;
+        }
+
+        const totalFramesInAnimation = frames.length;
+        const frameDuration = 1000 / fps;
+        const currentFrameIdx = Math.floor((elapsed / frameDuration) % totalFramesInAnimation);
+        
+        const frameCanvas = getFrameCanvas(frames[currentFrameIdx], exportWidth, exportHeight);
+        if (frameCanvas) {
+          recordCtx.clearRect(0, 0, exportWidth, exportHeight);
+          recordCtx.drawImage(frameCanvas, 0, 0);
+        }
+        
+        requestAnimationFrame(renderLoop);
+      };
+
+      renderLoop();
     }
   };
 
