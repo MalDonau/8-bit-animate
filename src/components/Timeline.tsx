@@ -66,13 +66,13 @@ const Timeline: React.FC<TimelineProps> = ({
             className={`onion-button ${onionSkin > 0 ? 'active' : ''}`}
             title="Papel Cebolla"
           >
-            🧅{onionSkin > 0 ? onionSkin : ''}
+            ◎{onionSkin > 0 ? onionSkin : ''}
           </button>
           <button 
             className={`play-button ${isPlaying ? 'active' : ''}`}
             onClick={() => setIsPlaying(!isPlaying)}
           >
-            {isPlaying ? '⏸️' : '▶️'}
+            {isPlaying ? 'Ⅱ' : '▶'}
           </button>
         </div>
         <div className="fps-control">

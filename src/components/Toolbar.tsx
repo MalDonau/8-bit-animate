@@ -31,30 +31,31 @@ const Toolbar: React.FC<ToolbarProps> = ({ currentTool, setTool, currentColor, s
             onClick={() => setTool('brush')}
             title="Pincel (B)"
           >
-            🖌️
+            ✎
           </button>
           <button 
             className={currentTool === 'eraser' ? 'active' : ''} 
             onClick={() => setTool('eraser')}
             title="Goma (E)"
           >
-            🧽
+            □
           </button>
           <button 
             className={currentTool === 'fill' ? 'active' : ''} 
             onClick={() => setTool('fill')}
             title="Relleno (F)"
           >
-            🧺
+            ▨
           </button>
           <button 
             className={currentTool === 'eyedropper' ? 'active' : ''} 
             onClick={() => setTool('eyedropper')}
-            title="Cuentagotas (I)"
+            title="Gotero (Alt+Click)"
           >
-            💉
+            ✛
           </button>
         </div>
+
       </div>
 
       <div className="tool-section">
