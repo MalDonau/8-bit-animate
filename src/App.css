@@ -1,25 +1,23 @@
 :root {
-  --bg-color: #f0f2f5;
-  --panel-bg: #ffffff;
-  --accent-color: #444444;
-  --text-color: #333;
-  --border-color: #d1d5db;
-  --shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  --editor-bg: #e5e7eb;
-  --button-hover: #f9fafb;
-  --button-active: #444444;
+  --bg-color: #080808;
+  --panel-bg: linear-gradient(180deg, #151515 0%, #0d0d0d 100%);
+  --accent-color: #ffb000; /* Neon Amber */
+  --accent-glow: 0 0 15px rgba(255, 176, 0, 0.4);
+  --text-color: #ffb000;
+  --text-dim: #8a5f00;
+  --border-color: #2a2000;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+  --editor-bg: #050505;
+  --button-hover: #1a1500;
+  --button-active: #ffb000;
 }
 
 .dark-mode {
-  --bg-color: #121212;
-  --panel-bg: #1e1e1e;
-  --accent-color: #555555;
-  --text-color: #aaaaaa;
-  --border-color: #333333;
-  --shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-  --editor-bg: #0a0a0a;
-  --button-hover: #2a2a2a;
-  --button-active: #444444;
+  /* En este estilo, el modo oscuro es la base */
+  --bg-color: #050505;
+  --panel-bg: linear-gradient(180deg, #121212 0%, #080808 100%);
+  --accent-color: #ffb000;
+  --border-color: #332200;
 }
 
 body {
@@ -28,6 +26,7 @@ body {
   background-color: var(--bg-color);
   color: var(--text-color);
   overflow: hidden;
+  letter-spacing: 0.5px;
 }
 
 .app-container {
@@ -39,7 +38,7 @@ body {
 }
 
 header {
-  background-color: var(--panel-bg);
+  background: var(--panel-bg);
   color: var(--text-color);
   padding: 0 20px;
   height: 50px;
@@ -47,57 +46,86 @@ header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--accent-color);
+  box-shadow: var(--accent-glow);
   z-index: 10;
-}
-
-.logo-container {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
 }
 
 .logo {
   font-family: 'Press Start 2P', cursive;
   font-weight: 400;
-  letter-spacing: 0;
-  color: var(--text-color);
+  color: var(--accent-color);
   font-size: 0.7rem;
-}
-
-.signature {
-  font-size: 0.45rem;
-  font-family: 'Press Start 2P', cursive;
-  opacity: 0.5;
-  color: var(--text-color);
-}
-
-.project-name-container {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  padding: 0 20px;
+  text-shadow: var(--accent-glow);
 }
 
 .project-name-input {
-  background: var(--editor-bg);
+  background: #000;
   border: 1px solid var(--border-color);
-  color: var(--text-color);
+  color: var(--accent-color);
   padding: 6px 12px;
-  border-radius: 4px;
+  border-radius: 2px;
   font-size: 0.85rem;
-  font-family: 'Inter', sans-serif;
+  font-family: inherit;
   width: 100%;
   max-width: 300px;
   outline: none;
-  transition: all 0.2s;
   text-align: center;
+  transition: all 0.2s;
 }
 
 .project-name-input:focus {
-  border-color: #888;
+  border-color: var(--accent-color);
+  box-shadow: var(--accent-glow);
+}
+
+/* BUTTONS AMBER GLOW */
+button {
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  background: #111;
+  color: var(--text-dim);
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  font-weight: bold;
+  transition: all 0.15s;
+}
+
+button:hover:not(:disabled) {
+  background: var(--button-hover);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+button.active {
+  background: var(--accent-color);
+  color: #000;
+  border-color: var(--accent-color);
+  box-shadow: var(--accent-glow);
+}
+
+.editor-area {
+  background: var(--editor-bg);
+  background-image: radial-gradient(#1a1500 1px, transparent 1px);
+  background-size: 30px 32px;
+}
+
+.canvas-container {
+  box-shadow: 0 0 40px rgba(0,0,0,1);
+  border: 1px solid var(--accent-color);
+  background-color: white;
+}
+
+.timeline-container, .toolbar, .info-panel {
   background: var(--panel-bg);
-  box-shadow: 0 0 0 2px rgba(136, 136, 136, 0.2);
+  border-color: var(--border-color);
+}
+
+.frame-thumbnail.selected {
+  border-color: var(--accent-color);
+  box-shadow: var(--accent-glow);
 }
 
 .project-name-input::placeholder {
