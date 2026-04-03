@@ -18,6 +18,8 @@ interface TopMenuProps {
   setDarkMode: (dark: boolean) => void;
   audioEnabled: boolean;
   setAudioEnabled: (enabled: boolean) => void;
+  isFullscreen: boolean;
+  setIsFullscreen: (full: boolean) => void;
 }
 
 const TopMenu: React.FC<TopMenuProps> = ({
@@ -25,7 +27,8 @@ const TopMenu: React.FC<TopMenuProps> = ({
   onSave, onOpen, onExport, onNew, onImport,
   showGrid, setShowGrid, zoom, setZoom,
   darkMode, setDarkMode,
-  audioEnabled, setAudioEnabled
+  audioEnabled, setAudioEnabled,
+  isFullscreen, setIsFullscreen
 }) => {
   const [showExportMenu, setShowExportMenu] = React.useState(false);
 
@@ -86,6 +89,14 @@ const TopMenu: React.FC<TopMenuProps> = ({
           title={darkMode ? "Modo Claro" : "Modo Oscuro"}
         >
           {darkMode ? '☀️' : '🌙'}
+        </button>
+
+        <button 
+          onClick={() => setIsFullscreen(!isFullscreen)}
+          className="fullscreen-toggle"
+          title="Pantalla Completa"
+        >
+          {isFullscreen ? '⏹️' : '🔳'}
         </button>
       </div>
     </div>

@@ -66,11 +66,12 @@ const getNeighborsCount = (pixels: string[], index: number, width: number, heigh
 function App() {
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
+  const [projectName, setProjectName] = useState('animacion');
   const [frames, setFrames] = useState<string[][]>([
     Array(DEFAULT_WIDTH * DEFAULT_HEIGHT).fill('transparent')
   ]);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
-  
+
   const framesRef = useRef(frames);
   useEffect(() => { framesRef.current = frames; }, [frames]);
 
@@ -85,6 +86,7 @@ function App() {
   const [onionSkin, setOnionSkin] = useState(0);
   const [darkMode, setDarkMode] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const audioCtx = useRef<AudioContext | null>(null);
   const delayNode = useRef<DelayNode | null>(null);
@@ -176,11 +178,10 @@ function App() {
     pan.pan.setValueAtTime((xPos / width) * 2 - 1, ctx.currentTime);
     const volume = 0.05 * volumeFactor;
     const attackTime = 0.2 * (1 - info.s) + 0.005;
-    
-    // NEW DECAY LOGIC
+
     const neighbors = getNeighborsCount(framePixels, row * width + xPos, width, height, color);
     const decayTime = Math.min(2.0, 0.2 + (neighbors * 0.2) + (colorDensity / 100));
-    
+
     gain.gain.setValueAtTime(0, ctx.currentTime);
     gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + attackTime);
     gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + decayTime);
@@ -222,11 +223,10 @@ function App() {
       const volume = 0.03;
       const info = getHexInfo(data.color);
       const attackTime = 0.2 * (1 - info.s) + 0.005;
-      
-      // NEW DECAY LOGIC
+
       const neighbors = getNeighborsCount(framePixels, row * width + data.x, width, height, data.color);
       const decayTime = Math.min(2.0, 0.2 + (neighbors * 0.2) + (density / 100));
-      
+
       gain.gain.setValueAtTime(0, ctx.currentTime);
       gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + attackTime);
       gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + decayTime);
@@ -259,9 +259,59 @@ function App() {
   const handleHistoryPush = (pixelsToPush: string[]) => { const newFrames = [...frames]; newFrames[currentFrameIndex] = pixelsToPush; pushState(newFrames); };
   const handleUndo = () => { const prevState = undo(); if (prevState) { setFrames(prevState); if (currentFrameIndex >= prevState.length) setCurrentFrameIndex(prevState.length - 1); } };
   const handleRedo = () => { const nextState = redo(); if (nextState) { setFrames(nextState); if (currentFrameIndex >= nextState.length) setCurrentFrameIndex(nextState.length - 1); } };
-  const handleNew = () => { if (confirm('¿Estás seguro?')) { const emptyFrames = [Array(width * height).fill('transparent')]; setFrames(emptyFrames); setCurrentFrameIndex(0); reset(emptyFrames); } };
-  const handleSave = () => { const data = JSON.stringify({ width, height, frames, bgImage, bgTransform }); const blob = new Blob([data], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'pixel-art-animation.json'; link.click(); };
-  const handleOpen = () => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.json'; input.onchange = (e) => { const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { try { const content = JSON.parse(e.target?.result as string); setWidth(content.width); setHeight(content.height); if (content.frames) { setFrames(content.frames); reset(content.frames); } if (content.bgImage) setBgImage(content.bgImage); if (content.bgTransform) setBgTransform(content.bgTransform); setCurrentFrameIndex(0); } catch (err) { alert('Error al abrir el archivo.'); } }; reader.readAsText(file); }; input.click(); };
+  const handleNew = () => { if (confirm('¿Estás seguro?')) { const emptyFrames = [Array(width * height).fill('transparent')]; setFrames(emptyFrames); setProjectName('animate'); setCurrentFrameIndex(0); reset(emptyFrames); } };
+  
+  const handleSave = () => {
+    const data = JSON.stringify({
+      projectName,
+      width,
+      height,
+      frames,
+      bgImage,
+      bgTransform
+    });
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${projectName}.json`;
+    link.click();
+  };
+
+  const handleOpen = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const content = JSON.parse(e.target?.result as string);
+          if (content.projectName) {
+            setProjectName(content.projectName);
+          } else {
+            setProjectName(file.name.replace('.json', ''));
+          }
+          setWidth(content.width);
+          setHeight(content.height);
+          if (content.frames) {
+            setFrames(content.frames);
+            reset(content.frames);
+          }
+          if (content.bgImage) setBgImage(content.bgImage);
+          if (content.bgTransform) setBgTransform(content.bgTransform);
+          setCurrentFrameIndex(0);
+        } catch (err) {
+          alert('Error al abrir el archivo.');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
   const addFrame = () => { if (frames.length >= MAX_FRAMES) return; const newFrames = [...frames]; const emptyFrame = Array(width * height).fill('transparent'); newFrames.splice(currentFrameIndex + 1, 0, emptyFrame); setFrames(newFrames); setCurrentFrameIndex(currentFrameIndex + 1); pushState(newFrames); };
   const duplicateFrame = () => { if (frames.length >= MAX_FRAMES) return; const newFrames = [...frames]; const duplicatedFrame = [...frames[currentFrameIndex]]; newFrames.splice(currentFrameIndex + 1, 0, duplicatedFrame); setFrames(newFrames); setCurrentFrameIndex(currentFrameIndex + 1); pushState(newFrames); };
   const removeFrame = () => { if (frames.length <= 1) return; const newFrames = frames.filter((_, i) => i !== currentFrameIndex); setFrames(newFrames); setCurrentFrameIndex(Math.max(0, currentFrameIndex - 1)); pushState(newFrames); };
@@ -289,24 +339,24 @@ function App() {
     };
     if (format === 'png') {
       const canvas = getFrameCanvas(frames[currentFrameIndex]); if (!canvas) return;
-      const link = document.createElement('a'); link.download = `frame_${currentFrameIndex + 1}.png`; link.href = canvas.toDataURL('image/png'); link.click();
+      const link = document.createElement('a'); link.download = `${projectName}_frame_${currentFrameIndex + 1}.png`; link.href = canvas.toDataURL('image/png'); link.click();
     } else if (format === 'png-seq' || format === 'jpg-seq') {
       const extension = format === 'png-seq' ? 'png' : 'jpg';
       const mimeType = format === 'png-seq' ? 'image/png' : 'image/jpeg';
       for (let i = 0; i < frames.length; i++) {
         const canvas = getFrameCanvas(frames[i]); if (!canvas) continue;
         const dataUrl = canvas.toDataURL(mimeType).split(',')[1];
-        zip.file(`frame_${String(i + 1).padStart(3, '0')}.${extension}`, dataUrl, { base64: true });
+        zip.file(`${projectName}_${String(i + 1).padStart(3, '0')}.${extension}`, dataUrl, { base64: true });
       }
       const content = await zip.generateAsync({ type: 'blob' });
-      const link = document.createElement('a'); link.download = `animation_sequence_${extension}.zip`; link.href = URL.createObjectURL(content); link.click();
+      const link = document.createElement('a'); link.download = `${projectName}_sequence_${extension}.zip`; link.href = URL.createObjectURL(content); link.click();
     } else if (format === 'gif') {
       try {
         const workerResponse = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
         const workerBlob = await workerResponse.blob(); const workerUrl = URL.createObjectURL(workerBlob);
         const gif = new GIF({ workers: 2, quality: 1, width: width, height: height, workerScript: workerUrl, transparent: 'rgba(0,0,0,0)' });
         frames.forEach((frame) => { const canvas = getFrameCanvas(frame); if (canvas) gif.addFrame(canvas, { delay: 1000 / fps, copy: true }); });
-        gif.on('finished', (blob: Blob) => { const link = document.createElement('a'); link.download = 'animation.gif'; link.href = URL.createObjectURL(blob); link.click(); URL.revokeObjectURL(workerUrl); });
+        gif.on('finished', (blob: Blob) => { const link = document.createElement('a'); link.download = `${projectName}.gif`; link.href = URL.createObjectURL(blob); link.click(); URL.revokeObjectURL(workerUrl); });
         gif.render();
       } catch (err) { alert('Error al generar el GIF.'); }
     }
@@ -324,31 +374,50 @@ function App() {
       else if (e.key === 'b') setCurrentTool('brush');
       else if (e.key === 'e') setCurrentTool('eraser');
       else if (e.key === 'f') setCurrentTool('fill');
+      else if (e.key === 'Escape' && isFullscreen) setIsFullscreen(false);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo]);
+  }, [handleUndo, handleRedo, isFullscreen]);
 
   return (
-    <div className={`app-container ${darkMode ? 'dark-mode' : ''}`}>
-      <header>
-        <div className="logo-container"><div className="logo">8-BIT ANIMATE</div><span className="signature">by maldo</span></div>
-        <TopMenu onUndo={handleUndo} onRedo={handleRedo} canUndo={canUndo} canRedo={canRedo} onSave={handleSave} onOpen={handleOpen} onExport={handleExport} onNew={handleNew} onImport={() => setIsImporting(true)} showGrid={showGrid} setShowGrid={setShowGrid} zoom={zoom} setZoom={setZoom} darkMode={darkMode} setDarkMode={setDarkMode} audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled} />
-      </header>
+    <div className={`app-container ${darkMode ? 'dark-mode' : ''} ${isFullscreen ? 'fullscreen-mode' : ''}`}>
+      {!isFullscreen && (
+        <header>
+          <div className="logo-container"><div className="logo">8-BIT ANIMATE</div><span className="signature">by maldo</span></div>
+          <div className="project-name-container">
+            <input 
+              type="text" 
+              className="project-name-input"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              placeholder="Nombre..."
+            />
+          </div>
+          <TopMenu onUndo={handleUndo} onRedo={handleRedo} canUndo={canUndo} canRedo={canRedo} onSave={handleSave} onOpen={handleOpen} onExport={handleExport} onNew={handleNew} onImport={() => setIsImporting(true)} showGrid={showGrid} setShowGrid={setShowGrid} zoom={zoom} setZoom={setZoom} darkMode={darkMode} setDarkMode={setDarkMode} audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled} isFullscreen={isFullscreen} setIsFullscreen={setIsFullscreen} />
+        </header>
+      )}
       <main>
-        <Toolbar currentTool={currentTool} setTool={setCurrentTool} currentColor={currentColor} setColor={setCurrentColor} />
+        {!isFullscreen && <Toolbar currentTool={currentTool} setTool={setCurrentTool} currentColor={currentColor} setColor={setCurrentColor} />}
         <div className="editor-area">
+          {isFullscreen && (
+            <button className="exit-fullscreen-btn" onClick={() => setIsFullscreen(false)}>
+              Salir Pantalla Completa (Esc)
+            </button>
+          )}
           <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={frames} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={playSingleNote} />
         </div>
         {isImporting && <ImageImporter width={width} height={height} palette={FULL_PALETTE} onImport={handleImport} onCancel={() => setIsImporting(false)} />}
-        <aside className="info-panel">
-          <h3>Información</h3><p>Frames: {frames.length} / {MAX_FRAMES}</p><p>Frame actual: {currentFrameIndex + 1}</p><p>Lienzo: {width} x {height}</p>
-          <div className="shift-controls"><h3>Mover Capa</h3><div className="shift-cross"><button className="up" onClick={() => shiftPixels(0, -1)}>⬆️</button><button className="left" onClick={() => shiftPixels(-1, 0)}>⬅️</button><button className="right" onClick={() => shiftPixels(1, 0)}>➡️</button><button className="down" onClick={() => shiftPixels(0, 1)}>⬇️</button></div></div>
-          <div className="bg-panel"><h3>Imagen Referencia</h3>{!bgImage ? ( <input type="file" accept="image/*" onChange={handleBgUpload} /> ) : ( <div className="bg-controls"><button className={isEditingBg ? 'active' : ''} onClick={() => setIsEditingBg(!isEditingBg)}>{isEditingBg ? '✅ Guardar' : '🎯 Ajustar'}</button><label>Opacidad: <input type="range" min="0" max="1" step="0.1" value={bgTransform.opacity} onChange={e => setBgTransform({...bgTransform, opacity: parseFloat(e.target.value)})} /></label><label>Zoom: <input type="range" min="0.1" max="5" step="0.1" value={bgTransform.scale} onChange={e => setBgTransform({...bgTransform, scale: parseFloat(e.target.value)})} /></label><label>Girar: <input type="range" min="0" max="360" step="1" value={bgTransform.rotation} onChange={e => setBgTransform({...bgTransform, rotation: parseInt(e.target.value)})} /></label><button onClick={() => setBgImage(null)} className="danger">Quitar</button></div> )}</div>
-          <div className="shortcuts"><p><strong>B</strong>: Pincel | <strong>E</strong>: Goma</p><p><strong>F</strong>: Relleno | <strong>Alt+Click</strong>: Gotero</p></div>
-        </aside>
+        {!isFullscreen && (
+          <aside className="info-panel">
+            <h3>Información</h3><p>Frames: {frames.length} / {MAX_FRAMES}</p><p>Frame actual: {currentFrameIndex + 1}</p><p>Lienzo: {width} x {height}</p>
+            <div className="shift-controls"><h3>Mover Capa</h3><div className="shift-cross"><button className="up" onClick={() => shiftPixels(0, -1)}>⬆️</button><button className="left" onClick={() => shiftPixels(-1, 0)}>⬅️</button><button className="right" onClick={() => shiftPixels(1, 0)}>➡️</button><button className="down" onClick={() => shiftPixels(0, 1)}>⬇️</button></div></div>
+            <div className="bg-panel"><h3>Imagen Referencia</h3>{!bgImage ? ( <input type="file" accept="image/*" onChange={handleBgUpload} /> ) : ( <div className="bg-controls"><button className={isEditingBg ? 'active' : ''} onClick={() => setIsEditingBg(!isEditingBg)}>{isEditingBg ? '✅ Guardar' : '🎯 Ajustar'}</button><label>Opacidad: <input type="range" min="0" max="1" step="0.1" value={bgTransform.opacity} onChange={e => setBgTransform({...bgTransform, opacity: parseFloat(e.target.value)})} /></label><label>Zoom: <input type="range" min="0.1" max="5" step="0.1" value={bgTransform.scale} onChange={e => setBgTransform({...bgTransform, scale: parseFloat(e.target.value)})} /></label><label>Girar: <input type="range" min="0" max="360" step="1" value={bgTransform.rotation} onChange={e => setBgTransform({...bgTransform, rotation: parseInt(e.target.value)})} /></label><button onClick={() => setBgImage(null)} className="danger">Quitar</button></div> )}</div>
+            <div className="shortcuts"><p><strong>B</strong>: Pincel | <strong>E</strong>: Goma</p><p><strong>F</strong>: Relleno | <strong>Alt+Click</strong>: Gotero</p></div>
+          </aside>
+        )}
       </main>
-      <Timeline frames={frames} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex} addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame} isPlaying={isPlaying} setIsPlaying={setIsPlaying} fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin} moveFrame={moveFrame} />
+      {!isFullscreen && <Timeline frames={frames} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex} addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame} isPlaying={isPlaying} setIsPlaying={setIsPlaying} fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin} moveFrame={moveFrame} />}
     </div>
   );
 }
