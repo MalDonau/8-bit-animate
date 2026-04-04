@@ -95,6 +95,7 @@ main {
   display: flex;
   flex: 1;
   overflow: hidden;
+  height: calc(100vh - 170px);
 }
 
 /* TOP MENU */
@@ -162,6 +163,9 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 25px;
+  overflow-y: auto;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .tool-section h3 {
@@ -239,6 +243,9 @@ button:disabled {
   background: var(--panel-bg);
   border-left: 1px solid var(--border-color);
   padding: 20px 15px;
+  overflow-y: auto;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .info-panel h3 {
@@ -324,6 +331,7 @@ input[type="file"]::file-selector-button {
 /* TIMELINE */
 .timeline-container {
   height: 120px;
+  min-height: 120px;
   background: var(--panel-bg);
   border-top: 1px solid var(--border-color);
   display: flex;
@@ -458,7 +466,7 @@ input[type="file"]::file-selector-button {
 }
 
 .menu-group input[type="checkbox"]:checked::after {
-  content: '✓';
+  content: '\2713';
   position: absolute;
   top: 50%;
   left: 50%;
@@ -479,7 +487,7 @@ input[type="file"]::file-selector-button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-color);
+  background: #2a2000;
   border: 1px solid var(--accent-color);
 }
 
