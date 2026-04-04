@@ -143,7 +143,12 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     setPixels(newPixels);
   }, [pixels, tool, color, width, height, setColor, setPixels, playPixelSound]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.setPointerCapture(e.pointerId);
+    }
+
     if (isEditingBg && bgTransform && setBgTransform) {
       setIsDrawing(true);
       setDragStart({ x: e.clientX - bgTransform.x, y: e.clientY - bgTransform.y });
@@ -158,19 +163,32 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handlePointerMove = (e: React.PointerEvent) => {
     if (isEditingBg && isDrawing && bgTransform && setBgTransform) {
       setBgTransform({ ...bgTransform, x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
       return;
     }
+    
+    // Check if any button is pressed (1 for left, 2 for right, 4 for middle)
+    // PointerEvent.buttons is a bitmask
+    if (!isDrawing || e.buttons === 0) return;
+
     const index = getPixelIndex(e.clientX, e.clientY);
-    if (isDrawing && activeButton !== null) {
+    if (activeButton !== null) {
       const toolToUse = (e.altKey && activeButton === 0) ? 'eyedropper' : (activeButton === 2 ? 'eraser' : tool);
       if (toolToUse === 'brush' || toolToUse === 'eraser') handleAction(index, toolToUse);
     }
   };
 
-  const handleMouseUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
+    const canvas = canvasRef.current;
+    if (canvas && e.pointerId !== undefined) {
+      try {
+        canvas.releasePointerCapture(e.pointerId);
+      } catch (err) {
+        // Ignore if pointerId is invalid
+      }
+    }
     setIsDrawing(false);
     setActiveButton(null);
     if (!isEditingBg) onHistoryPush(pixels);
@@ -191,7 +209,7 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       style={{
         width: width * zoom, height: height * zoom, flexShrink: 0, position: 'relative',
         cursor: isEditingBg ? (isDrawing ? 'grabbing' : 'grab') : (tool === 'eyedropper' ? 'crosshair' : 'default'),
-        background: '#fff', overflow: 'hidden'
+        background: '#fff', overflow: 'hidden', touchAction: 'none'
       }}
     >
       {bgImage && bgTransform && (
@@ -212,7 +230,7 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       <canvas
         ref={canvasRef} width={width} height={height}
         style={{ width: '100%', height: '100%', imageRendering: 'pixelated', display: 'block', position: 'relative', zIndex: 1 }}
-        onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
+        onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}
         onContextMenu={(e) => e.preventDefault()}
       />
       {showGrid && (
