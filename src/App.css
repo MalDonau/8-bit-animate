@@ -359,14 +359,14 @@ button:disabled {
 .file-input-container {
   display: flex;
   align-items: center;
-  gap: 0;
+  gap: 8px;
   overflow: hidden;
   margin-top: 10px;
 }
 
 input[type="file"] {
   color: transparent;
-  width: 110px;
+  width: 115px;
 }
 
 input[type="file"]::file-selector-button {
@@ -380,14 +380,12 @@ input[type="file"]::file-selector-button {
   font-weight: bold;
   cursor: pointer;
   transition: all 0.15s;
-  margin-right: 10px;
 }
 
 .file-custom-text {
   font-size: 0.7rem;
   color: var(--text-dim);
   text-transform: uppercase;
-  margin-left: -10px;
   pointer-events: none;
 }
 
