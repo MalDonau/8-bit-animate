@@ -1,17 +1,17 @@
 :root {
   /* LIGHT MODE (Default) - Grayscale */
-  --bg-color: #f5f5f5;
-  --panel-bg: linear-gradient(180deg, #eeeeee 0%, #e0e0e0 100%);
-  --accent-color: #000000;
-  --accent-glow: 0 0 10px rgba(0, 0, 0, 0.1);
-  --text-color: #000000;
-  --text-dim: #444444;
-  --border-color: #cccccc;
-  --shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  --editor-bg: #ffffff;
-  --button-hover: #e0e0e0;
+  --bg-color: #f0f0f0;
+  --panel-bg: linear-gradient(180deg, #ffffff 0%, #f5f5f5 100%);
+  --accent-color: #333333;
+  --accent-glow: 0 0 10px rgba(0, 0, 0, 0.05);
+  --text-color: #1a1a1a;
+  --text-dim: #666666;
+  --border-color: #dddddd;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  --editor-bg: #e8e8e8;
+  --button-hover: #ffffff;
   --button-active: #000000;
-  --grid-color: rgba(0, 0, 0, 0.1);
+  --grid-color: rgba(0, 0, 0, 0.08);
 }
 
 .dark-mode {
@@ -92,7 +92,7 @@ header {
 }
 
 .project-name-input {
-  background: #000;
+  background: var(--bg-color);
   border: 1px solid var(--border-color);
   color: var(--accent-color);
   padding: 6px 12px;
@@ -144,7 +144,7 @@ main {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #000;
+  background: var(--bg-color);
   padding: 2px 4px;
   border: 1px solid var(--border-color);
   border-radius: 2px;
@@ -171,7 +171,7 @@ main {
 button {
   padding: 6px 12px;
   border: 1px solid var(--border-color);
-  background: #111;
+  background: var(--bg-color);
   color: var(--text-dim);
   border-radius: 2px;
   cursor: pointer;
@@ -193,9 +193,13 @@ button:hover:not(:disabled) {
 
 button.active {
   background: var(--accent-color);
-  color: #000 !important;
+  color: var(--bg-color) !important;
   border-color: var(--accent-color);
   box-shadow: var(--accent-glow);
+}
+
+.dark-mode button.active {
+  color: #000 !important;
 }
 
 button:disabled {
@@ -243,7 +247,7 @@ button:disabled {
   height: 35px;
   border: 1px solid var(--border-color);
   cursor: pointer;
-  background: #000;
+  background: var(--bg-color);
   padding: 4px;
 }
 
@@ -255,8 +259,12 @@ button:disabled {
 
 .palette-color {
   aspect-ratio: 1;
-  border: 1px solid rgba(255,255,255,0.05);
+  border: 1px solid rgba(0,0,0,0.05);
   cursor: pointer;
+}
+
+.dark-mode .palette-color {
+  border-color: rgba(255,255,255,0.05);
 }
 
 .palette-color.selected {
@@ -275,15 +283,19 @@ button:disabled {
   padding: 30px;
   overflow: auto;
   background: var(--editor-bg);
-  background-image: radial-gradient(#1a1500 1px, transparent 1px);
+  background-image: radial-gradient(var(--border-color) 1px, transparent 1px);
   background-size: 30px 32px;
   position: relative;
 }
 
 .canvas-container {
-  box-shadow: 0 0 40px rgba(0,0,0,1);
+  box-shadow: 0 0 40px rgba(0,0,0,0.1);
   border: 1px solid var(--accent-color);
   background-color: white;
+}
+
+.dark-mode .canvas-container {
+  box-shadow: 0 0 40px rgba(0,0,0,1);
 }
 
 /* INFO PANEL */
@@ -328,7 +340,7 @@ button:disabled {
 }
 
 .shift-cross button {
-  background: #111;
+  background: var(--bg-color);
   border-color: var(--border-color);
   color: var(--accent-color);
   font-size: 1.2rem;
@@ -358,7 +370,7 @@ input[type="file"] {
 input[type="file"]::file-selector-button {
   padding: 6px 12px;
   border: 1px solid var(--border-color);
-  background: #111;
+  background: var(--bg-color);
   color: var(--accent-color);
   text-transform: uppercase;
   font-family: inherit;
@@ -420,6 +432,10 @@ input[type="file"]::file-selector-button {
 
 .fps-control input {
   width: 80px;
+  filter: grayscale(1) contrast(1.2);
+}
+
+.dark-mode .fps-control input {
   filter: grayscale(1) invert(1) brightness(0.8);
 }
 
@@ -439,11 +455,15 @@ input[type="file"]::file-selector-button {
   width: 50px;
   height: 50px;
   min-width: 50px;
-  background: #000;
+  background: #ffffff;
   border: 1px solid var(--border-color);
   position: relative;
   cursor: pointer;
   transition: transform 0.1s;
+}
+
+.dark-mode .frame-thumbnail {
+  background: #000000;
 }
 
 .frame-thumbnail.selected {
@@ -454,7 +474,7 @@ input[type="file"]::file-selector-button {
 
 @keyframes frame-flash {
   0% { background: var(--accent-color); box-shadow: 0 0 30px var(--accent-color); }
-  100% { background: #000; }
+  100% { background: var(--bg-color); }
 }
 
 .frame-thumbnail.new-frame {
@@ -528,7 +548,7 @@ input[type="file"]::file-selector-button {
   width: 14px;
   height: 14px;
   border: 1px solid var(--border-color);
-  background: #000;
+  background: var(--bg-color);
   position: relative;
   cursor: pointer;
 }
@@ -545,9 +565,13 @@ input[type="file"]::file-selector-button {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: #000;
+  color: var(--bg-color);
   font-size: 10px;
   font-weight: bold;
+}
+
+.dark-mode .menu-group input[type="checkbox"]:checked::after {
+  color: #000;
 }
 
 /* CUSTOM SCROLLBARS */
@@ -557,11 +581,11 @@ input[type="file"]::file-selector-button {
 }
 
 ::-webkit-scrollbar-track {
-  background: #050505;
+  background: var(--bg-color);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2a2000;
+  background: var(--border-color);
   border: 1px solid var(--accent-color);
 }
 
@@ -572,11 +596,11 @@ input[type="file"]::file-selector-button {
 
 /* FULLSCREEN MODE */
 .fullscreen-mode {
-  background-color: #000 !important;
+  background-color: var(--bg-color) !important;
 }
 
 .fullscreen-mode .editor-area {
-  background-color: #000;
+  background-color: var(--bg-color);
   padding: 0;
   width: 100vw;
   height: 100vh;
@@ -587,7 +611,7 @@ input[type="file"]::file-selector-button {
   top: 20px;
   right: 20px;
   z-index: 1000;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(var(--accent-color), 0.1);
   color: var(--accent-color);
   border: 1px solid var(--accent-color);
   padding: 8px 16px;
@@ -604,7 +628,7 @@ input[type="file"]::file-selector-button {
   position: absolute;
   top: 100%;
   left: 0;
-  background-color: #0d0d0d;
+  background-color: var(--bg-color);
   min-width: 180px;
   box-shadow: var(--shadow);
   z-index: 100;
@@ -621,6 +645,10 @@ input[type="file"]::file-selector-button {
 
 .dropdown-content button:hover {
   background: var(--accent-color);
+  color: var(--bg-color);
+}
+
+.dark-mode .dropdown-content button:hover {
   color: #000;
 }
 
