@@ -1,7 +1,24 @@
 :root {
+  /* LIGHT MODE (Default) - Grayscale */
+  --bg-color: #f5f5f5;
+  --panel-bg: linear-gradient(180deg, #eeeeee 0%, #e0e0e0 100%);
+  --accent-color: #000000;
+  --accent-glow: 0 0 10px rgba(0, 0, 0, 0.1);
+  --text-color: #000000;
+  --text-dim: #444444;
+  --border-color: #cccccc;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  --editor-bg: #ffffff;
+  --button-hover: #e0e0e0;
+  --button-active: #000000;
+  --grid-color: rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode {
+  /* DARK MODE - Neon Amber */
   --bg-color: #080808;
   --panel-bg: linear-gradient(180deg, #151515 0%, #0d0d0d 100%);
-  --accent-color: #ffb000; /* Neon Amber */
+  --accent-color: #ffb000;
   --accent-glow: 0 0 15px rgba(255, 176, 0, 0.4);
   --text-color: #ffb000;
   --text-dim: #8a5f00;
@@ -10,6 +27,7 @@
   --editor-bg: #050505;
   --button-hover: #1a1500;
   --button-active: #ffb000;
+  --grid-color: rgba(255, 176, 0, 0.1);
 }
 
 body {
@@ -19,6 +37,7 @@ body {
   color: var(--text-color);
   overflow: hidden;
   letter-spacing: 0.5px;
+  transition: background-color 0.3s, color 0.3s;
 }
 
 .app-container {
@@ -27,6 +46,7 @@ body {
   height: 100vh;
   width: 100vw;
   background-color: var(--bg-color);
+  transition: background-color 0.3s;
 }
 
 header {
