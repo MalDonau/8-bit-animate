@@ -21,7 +21,7 @@
   --accent-color: #ffb000;
   --accent-glow: 0 0 15px rgba(255, 176, 0, 0.4);
   --text-color: #ffb000;
-  --text-dim: #8a5f00;
+  --text-dim: #b38b00;
   --border-color: #2a2000;
   --shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
   --editor-bg: #050505;
@@ -366,7 +366,7 @@ button:disabled {
 
 input[type="file"] {
   color: transparent;
-  width: 115px;
+  width: 130px;
 }
 
 input[type="file"]::file-selector-button {
