@@ -319,17 +319,18 @@ button:disabled {
   margin-bottom: 15px;
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 5px;
-  opacity: 0.9;
+  opacity: 0.55;
 }
 
 .info-panel p {
   font-size: 0.7rem;
   margin: 8px 0;
   color: var(--text-color);
+  opacity: 0.65;
 }
 
 .info-panel .shortcuts p {
-  opacity: 0.8;
+  opacity: 0.45;
   color: var(--text-dim);
 }
 
