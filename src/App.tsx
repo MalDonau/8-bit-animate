@@ -505,7 +505,7 @@ function App() {
           </aside>
         )}
       </main>
-      {!isFullscreen && <Timeline frames={frames} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex} addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame} isPlaying={isPlaying} setIsPlaying={setIsPlaying} fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin} moveFrame={moveFrame} />}
+      {!isFullscreen && <Timeline frames={frames} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex} addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame} isPlaying={isPlaying} setIsPlaying={setIsPlaying} fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin} moveFrame={moveFrame} playFrameSound={playFrameSound} />}
     </div>
   );
 }

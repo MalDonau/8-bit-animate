@@ -408,8 +408,11 @@ input[type="file"]::file-selector-button {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding: 10px 5px;
+  padding: 15px 5px;
   align-items: center;
+  position: relative;
+  user-select: none;
+  touch-action: none;
 }
 
 .frame-thumbnail {
@@ -420,11 +423,24 @@ input[type="file"]::file-selector-button {
   border: 1px solid var(--border-color);
   position: relative;
   cursor: pointer;
+  transition: transform 0.1s;
 }
 
 .frame-thumbnail.selected {
   border-color: var(--accent-color);
   box-shadow: var(--accent-glow);
+  transform: translateY(-2px);
+}
+
+.scrub-cursor {
+  position: absolute;
+  bottom: -10px;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: var(--accent-color);
+  box-shadow: var(--accent-glow);
+  border-radius: 2px;
 }
 
 .frame-number {

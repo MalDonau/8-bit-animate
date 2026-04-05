@@ -16,6 +16,7 @@ interface TimelineProps {
   onionSkin: number;
   setOnionSkin: (count: number) => void;
   moveFrame: (from: number, to: number) => void;
+  playFrameSound: (framePixels: string[]) => void;
 }
 
 const Timeline: React.FC<TimelineProps> = ({
@@ -33,8 +34,12 @@ const Timeline: React.FC<TimelineProps> = ({
   height,
   onionSkin,
   setOnionSkin,
-  moveFrame
+  moveFrame,
+  playFrameSound
 }) => {
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const isScrubbing = React.useRef(false);
+
   const toggleOnionSkin = () => {
     const sequence = [0, 1, 2, 3, 4];
     const currentIndex = sequence.indexOf(onionSkin);
@@ -55,6 +60,43 @@ const Timeline: React.FC<TimelineProps> = ({
     if (fromIndex !== toIndex) {
       moveFrame(fromIndex, toIndex);
     }
+  };
+
+  const handleScrub = (clientX: number) => {
+    if (!scrollRef.current) return;
+    const rect = scrollRef.current.getBoundingClientRect();
+    const scrollLeft = scrollRef.current.scrollLeft;
+    const x = clientX - rect.left + scrollLeft;
+    
+    // Each thumbnail is 50px width + 8px gap
+    const itemWidth = 58; 
+    const index = Math.max(0, Math.min(frames.length - 1, Math.floor(x / itemWidth)));
+    
+    if (index !== currentFrameIndex) {
+      setCurrentFrameIndex(index);
+      playFrameSound(frames[index]);
+    }
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).classList.contains('frames-list')) {
+      isScrubbing.current = true;
+      handleScrub(e.clientX);
+      scrollRef.current?.setPointerCapture(e.pointerId);
+    }
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (isScrubbing.current) {
+      handleScrub(e.clientX);
+    }
+  };
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    isScrubbing.current = false;
+    try {
+      scrollRef.current?.releasePointerCapture(e.pointerId);
+    } catch(err) {}
   };
 
   return (
@@ -87,12 +129,21 @@ const Timeline: React.FC<TimelineProps> = ({
         </div>
       </div>
 
-      <div className="frames-list">
+      <div 
+        className="frames-list" 
+        ref={scrollRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
         {frames.map((frame, index) => (
           <div 
             key={index}
             className={`frame-thumbnail ${index === currentFrameIndex ? 'selected' : ''}`}
-            onClick={() => setCurrentFrameIndex(index)}
+            onClick={() => {
+              setCurrentFrameIndex(index);
+              playFrameSound(frame);
+            }}
             draggable
             onDragStart={(e) => handleDragStart(e, index)}
             onDragOver={handleDragOver}
@@ -100,6 +151,7 @@ const Timeline: React.FC<TimelineProps> = ({
           >
             <div className="frame-number">{index + 1}</div>
             <MiniCanvas pixels={frame} width={width} height={height} />
+            {index === currentFrameIndex && <div className="scrub-cursor" />}
           </div>
         ))}
         {frames.length < 48 && (
