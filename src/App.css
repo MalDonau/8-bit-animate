@@ -432,6 +432,15 @@ input[type="file"]::file-selector-button {
   transform: translateY(-2px);
 }
 
+@keyframes frame-flash {
+  0% { background: var(--accent-color); box-shadow: 0 0 30px var(--accent-color); }
+  100% { background: #000; }
+}
+
+.frame-thumbnail.new-frame {
+  animation: frame-flash 0.6s ease-out;
+}
+
 .scrub-cursor {
   position: absolute;
   bottom: -10px;

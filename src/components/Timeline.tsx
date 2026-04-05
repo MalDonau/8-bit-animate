@@ -17,6 +17,7 @@ interface TimelineProps {
   setOnionSkin: (count: number) => void;
   moveFrame: (from: number, to: number) => void;
   playFrameSound: (framePixels: string[]) => void;
+  lastAddedIndex: number | null;
 }
 
 const Timeline: React.FC<TimelineProps> = ({
@@ -35,7 +36,8 @@ const Timeline: React.FC<TimelineProps> = ({
   onionSkin,
   setOnionSkin,
   moveFrame,
-  playFrameSound
+  playFrameSound,
+  lastAddedIndex
 }) => {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const isScrubbing = React.useRef(false);
@@ -99,6 +101,16 @@ const Timeline: React.FC<TimelineProps> = ({
     } catch(err) {}
   };
 
+  // Auto-scroll to end when frames are added
+  React.useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        left: scrollRef.current.scrollWidth,
+        behavior: 'smooth'
+      });
+    }
+  }, [frames.length]);
+
   return (
     <div className="timeline-container">
       <div className="playback-controls">
@@ -139,7 +151,7 @@ const Timeline: React.FC<TimelineProps> = ({
         {frames.map((frame, index) => (
           <div 
             key={index}
-            className={`frame-thumbnail ${index === currentFrameIndex ? 'selected' : ''}`}
+            className={`frame-thumbnail ${index === currentFrameIndex ? 'selected' : ''} ${index === lastAddedIndex ? 'new-frame' : ''}`}
             onClick={() => {
               setCurrentFrameIndex(index);
               playFrameSound(frame);

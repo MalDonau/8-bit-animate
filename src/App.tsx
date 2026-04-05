@@ -87,6 +87,7 @@ function App() {
   const [darkMode, setDarkMode] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [lastAddedIndex, setLastAddedIndex] = useState<number | null>(null);
 
   const audioCtx = useRef<AudioContext | null>(null);
   const delayNode = useRef<DelayNode | null>(null);
@@ -319,8 +320,30 @@ function App() {
     input.click();
   };
 
-  const addFrame = () => { if (frames.length >= MAX_FRAMES) return; const newFrames = [...frames]; const emptyFrame = Array(width * height).fill('transparent'); newFrames.splice(currentFrameIndex + 1, 0, emptyFrame); setFrames(newFrames); setCurrentFrameIndex(currentFrameIndex + 1); pushState(newFrames); };
-  const duplicateFrame = () => { if (frames.length >= MAX_FRAMES) return; const newFrames = [...frames]; const duplicatedFrame = [...frames[currentFrameIndex]]; newFrames.splice(currentFrameIndex + 1, 0, duplicatedFrame); setFrames(newFrames); setCurrentFrameIndex(currentFrameIndex + 1); pushState(newFrames); };
+  const addFrame = () => { 
+    if (frames.length >= MAX_FRAMES) return; 
+    const newFrames = [...frames]; 
+    const emptyFrame = Array(width * height).fill('transparent'); 
+    const nextIdx = currentFrameIndex + 1;
+    newFrames.splice(nextIdx, 0, emptyFrame); 
+    setFrames(newFrames); 
+    setCurrentFrameIndex(nextIdx); 
+    setLastAddedIndex(nextIdx);
+    setTimeout(() => setLastAddedIndex(null), 600);
+    pushState(newFrames); 
+  };
+  const duplicateFrame = () => { 
+    if (frames.length >= MAX_FRAMES) return; 
+    const newFrames = [...frames]; 
+    const duplicatedFrame = [...frames[currentFrameIndex]]; 
+    const nextIdx = currentFrameIndex + 1;
+    newFrames.splice(nextIdx, 0, duplicatedFrame); 
+    setFrames(newFrames); 
+    setCurrentFrameIndex(nextIdx); 
+    setLastAddedIndex(nextIdx);
+    setTimeout(() => setLastAddedIndex(null), 600);
+    pushState(newFrames); 
+  };
   const removeFrame = () => { if (frames.length <= 1) return; const newFrames = frames.filter((_, i) => i !== currentFrameIndex); setFrames(newFrames); setCurrentFrameIndex(Math.max(0, currentFrameIndex - 1)); pushState(newFrames); };
   const shiftPixels = (dx: number, dy: number) => { const newPixels = Array(width * height).fill('transparent'); const currentPixels = frames[currentFrameIndex]; for (let y = 0; y < height; y++) { for (let x = 0; x < width; x++) { const nx = x + dx; const ny = y + dy; if (nx >= 0 && nx < width && ny >= 0 && ny < height) { newPixels[ny * width + nx] = currentPixels[y * width + x]; } } } const newFrames = [...frames]; newFrames[currentFrameIndex] = newPixels; setFrames(newFrames); pushState(newFrames); };
 
@@ -505,7 +528,7 @@ function App() {
           </aside>
         )}
       </main>
-      {!isFullscreen && <Timeline frames={frames} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex} addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame} isPlaying={isPlaying} setIsPlaying={setIsPlaying} fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin} moveFrame={moveFrame} playFrameSound={playFrameSound} />}
+      {!isFullscreen && <Timeline frames={frames} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex} addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame} isPlaying={isPlaying} setIsPlaying={setIsPlaying} fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin} moveFrame={moveFrame} playFrameSound={playFrameSound} lastAddedIndex={lastAddedIndex} />}
     </div>
   );
 }
