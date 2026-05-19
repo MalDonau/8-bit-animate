@@ -214,7 +214,7 @@ button:disabled {
 
 /* TOOLBAR */
 .toolbar {
-  width: 200px;
+  width: 208px;
   background: var(--panel-bg);
   border-right: 1px solid var(--border-color);
   padding: 20px 15px;
@@ -222,6 +222,7 @@ button:disabled {
   flex-direction: column;
   gap: 25px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   height: 100%;
   box-sizing: border-box;
 }
@@ -305,11 +306,12 @@ button:disabled {
 
 /* INFO PANEL */
 .info-panel {
-  width: 200px;
+  width: 208px;
   background: var(--panel-bg);
   border-left: 1px solid var(--border-color);
   padding: 20px 15px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   height: 100%;
   box-sizing: border-box;
 }
@@ -591,8 +593,8 @@ input[type="file"]::file-selector-button {
 
 /* CUSTOM SCROLLBARS */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 16px;
+  height: 16px;
 }
 
 ::-webkit-scrollbar-track {
