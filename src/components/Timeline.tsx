@@ -18,6 +18,8 @@ interface TimelineProps {
   moveFrame: (from: number, to: number) => void;
   playFrameSound: (framePixels: string[]) => void;
   lastAddedIndex: number | null;
+  isRecording: boolean;
+  setIsRecording: (rec: boolean) => void;
 }
 
 const Timeline: React.FC<TimelineProps> = ({
@@ -37,7 +39,9 @@ const Timeline: React.FC<TimelineProps> = ({
   setOnionSkin,
   moveFrame,
   playFrameSound,
-  lastAddedIndex
+  lastAddedIndex,
+  isRecording,
+  setIsRecording
 }) => {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const isScrubbing = React.useRef(false);
@@ -122,11 +126,18 @@ const Timeline: React.FC<TimelineProps> = ({
           >
             ◎{onionSkin > 0 ? onionSkin : ''}
           </button>
-          <button 
+          <button
             className={`play-button ${isPlaying ? 'active' : ''}`}
             onClick={() => setIsPlaying(!isPlaying)}
           >
             {isPlaying ? 'Ⅱ' : '▶'}
+          </button>
+          <button
+            className={`rec-button ${isRecording ? 'active' : ''}`}
+            onClick={() => setIsRecording(!isRecording)}
+            title={isRecording ? 'REC: ON (los trazos se guardan)' : 'REC: OFF (los trazos se desvanecen)'}
+          >
+            ●
           </button>
         </div>
         <div className="fps-control">

@@ -30,19 +30,27 @@ interface PixelCanvasProps {
   isEditingBg?: boolean;
   isPlaying?: boolean;
   playPixelSound?: (row: number, color: string, xPos: number, volumeFactor: number, colorDensity: number) => void;
+  isRecording?: boolean;
 }
+
+const EPHEMERAL_DURATION = 1000;
+const EPHEMERAL_FADE_START = 700;
 
 const PixelCanvas: React.FC<PixelCanvasProps> = ({
   pixels, setPixels, width, height, color, setColor, tool, zoom, showGrid,
   onHistoryPush, currentFrameIndex = 0, frames = [], onionSkin = 0,
   bgImage, bgTransform, setBgTransform, isEditingBg, isPlaying,
-  playPixelSound
+  playPixelSound, isRecording = false
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [activeButton, setActiveButton] = useState<number | null>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [lastPixelIndex, setLastPixelIndex] = useState(-1);
+
+  const ephemeralRef = useRef<Array<{ index: number; color: string; timestamp: number }>>([]);
+  const rafRef = useRef<number | null>(null);
+  const drawCanvasRef = useRef<() => void>(() => {});
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -84,9 +92,54 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       ctx.fillStyle = pxColor;
       ctx.fillRect(x, y, 1, 1);
     });
+
+    if (ephemeralRef.current.length > 0) {
+      const now = performance.now();
+      ephemeralRef.current.forEach((p) => {
+        const age = now - p.timestamp;
+        if (age >= EPHEMERAL_DURATION) return;
+        const alpha = age <= EPHEMERAL_FADE_START
+          ? 1
+          : 1 - (age - EPHEMERAL_FADE_START) / (EPHEMERAL_DURATION - EPHEMERAL_FADE_START);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.index % width, Math.floor(p.index / width), 1, 1);
+      });
+      ctx.globalAlpha = 1.0;
+    }
   }, [pixels, width, onionSkin, frames, currentFrameIndex]);
 
+  useEffect(() => { drawCanvasRef.current = drawCanvas; }, [drawCanvas]);
   useEffect(() => { drawCanvas(); }, [drawCanvas]);
+
+  const tick = useCallback(() => {
+    const now = performance.now();
+    ephemeralRef.current = ephemeralRef.current.filter((p) => now - p.timestamp < EPHEMERAL_DURATION);
+    drawCanvasRef.current();
+    if (ephemeralRef.current.length > 0) {
+      rafRef.current = requestAnimationFrame(tick);
+    } else {
+      rafRef.current = null;
+    }
+  }, []);
+
+  const startTick = useCallback(() => {
+    if (rafRef.current == null) {
+      rafRef.current = requestAnimationFrame(tick);
+    }
+  }, [tick]);
+
+  useEffect(() => {
+    ephemeralRef.current = [];
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }, [currentFrameIndex, width, height]);
+
+  useEffect(() => () => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+  }, []);
 
   const getPixelIndex = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
@@ -107,11 +160,24 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       if (pickedColor !== 'transparent') setColor(pickedColor);
       return;
     }
+
+    if (!isRecording) {
+      if (currentTool === 'brush') {
+        ephemeralRef.current.push({ index, color, timestamp: performance.now() });
+        if (playPixelSound) {
+          const density = ephemeralRef.current.filter(p => p.color === color).length;
+          playPixelSound(Math.floor(index / width), color, index % width, 1.2, density);
+        }
+        startTick();
+      }
+      return;
+    }
+
     const newPixels = [...pixels];
     if (currentTool === 'brush') {
       if (newPixels[index] === color) return;
       newPixels[index] = color;
-      
+
       if (playPixelSound) {
         // Count current density of this color
         const density = newPixels.filter(c => c === color).length;
@@ -141,7 +207,7 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       }
     }
     setPixels(newPixels);
-  }, [pixels, tool, color, width, height, setColor, setPixels, playPixelSound]);
+  }, [pixels, tool, color, width, height, setColor, setPixels, playPixelSound, isRecording, startTick]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     const canvas = canvasRef.current;
@@ -191,7 +257,7 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     }
     setIsDrawing(false);
     setActiveButton(null);
-    if (!isEditingBg) onHistoryPush(pixels);
+    if (!isEditingBg && isRecording) onHistoryPush(pixels);
   };
 
   useEffect(() => {

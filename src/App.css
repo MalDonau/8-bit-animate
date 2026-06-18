@@ -432,9 +432,28 @@ input[type="file"]::file-selector-button {
   align-items: center;
 }
 
-.play-button, .onion-button {
+.play-button, .onion-button, .rec-button {
   width: 36px;
   height: 36px;
+}
+
+.rec-button {
+  color: #c0392b;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.rec-button.active {
+  background: #c0392b !important;
+  border-color: #c0392b !important;
+  color: #fff !important;
+  box-shadow: 0 0 8px rgba(192, 57, 43, 0.7);
+  animation: rec-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes rec-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(192, 57, 43, 0.7); }
+  50% { box-shadow: 0 0 16px rgba(192, 57, 43, 1); }
 }
 
 .fps-control {
