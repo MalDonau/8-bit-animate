@@ -45,7 +45,9 @@ const Toolbar: React.FC<ToolbarProps> = ({ currentTool, setTool, currentColor, s
             onClick={() => setTool('fill')}
             title="Relleno (F)"
           >
-            🪣
+            <svg width="18" height="18" viewBox="0 0 576 512" fill="currentColor" aria-hidden="true">
+              <path d="M512 320s-64 92.65-64 128c0 35.35 28.66 64 64 64s64-28.65 64-64-64-128-64-128zm-9.37-79.43L294.74 32.71c-12.5-12.5-32.76-12.5-45.26 0l-78.06 78.07-72.41-72.41-22.62 22.62 72.41 72.41L17.37 263.43c-12.5 12.5-12.5 32.76 0 45.26l190.86 190.86c12.5 12.5 32.76 12.5 45.26 0l249.14-249.14c12.5-12.51 12.5-32.76 0-45.26zM437.94 256H80l178.97-178.97L437.94 256z"/>
+            </svg>
           </button>
           <button 
             className={currentTool === 'eyedropper' ? 'active' : ''} 
