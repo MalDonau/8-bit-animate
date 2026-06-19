@@ -40,12 +40,12 @@ const Toolbar: React.FC<ToolbarProps> = ({ currentTool, setTool, currentColor, s
           >
             □
           </button>
-          <button 
-            className={currentTool === 'fill' ? 'active' : ''} 
+          <button
+            className={currentTool === 'fill' ? 'active' : ''}
             onClick={() => setTool('fill')}
             title="Relleno (F)"
           >
-            ▨
+            🪣
           </button>
           <button 
             className={currentTool === 'eyedropper' ? 'active' : ''} 

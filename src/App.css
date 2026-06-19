@@ -89,7 +89,19 @@ header {
   flex: 1;
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: 10px;
   padding: 0 20px;
+}
+
+.desktop-update-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2ecc71;
+  box-shadow: 0 0 6px rgba(46, 204, 113, 0.8);
+  flex-shrink: 0;
+  animation: update-dot-pulse 1.6s ease-in-out infinite;
 }
 
 .project-name-input {

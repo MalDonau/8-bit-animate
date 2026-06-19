@@ -179,6 +179,13 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!showUpdateDot) return;
+    const onFirstInteraction = () => markBuildSeen();
+    window.addEventListener('pointerdown', onFirstInteraction, { once: true });
+    return () => window.removeEventListener('pointerdown', onFirstInteraction);
+  }, [showUpdateDot, markBuildSeen]);
+
+  useEffect(() => {
     const unlock = () => {
       // iOS WebKit: an HTMLAudioElement playing a silent wav inside the
       // user gesture grants the page an audio session, which then lets
@@ -596,7 +603,7 @@ function App() {
           <div className="mobile-tools-divider" />
           <button className={`mobile-icon-btn ${currentTool === 'brush' ? 'active' : ''}`} onClick={() => setCurrentTool('brush')} title="Pincel">✎</button>
           <button className={`mobile-icon-btn ${currentTool === 'eraser' ? 'active' : ''}`} onClick={() => setCurrentTool('eraser')} title="Goma">□</button>
-          <button className={`mobile-icon-btn ${currentTool === 'fill' ? 'active' : ''}`} onClick={() => setCurrentTool('fill')} title="Relleno">▨</button>
+          <button className={`mobile-icon-btn ${currentTool === 'fill' ? 'active' : ''}`} onClick={() => setCurrentTool('fill')} title="Relleno">🪣</button>
           <button className={`mobile-icon-btn ${currentTool === 'eyedropper' ? 'active' : ''}`} onClick={() => setCurrentTool('eyedropper')} title="Gotero">✛</button>
           {showUpdateDot && <span className="mobile-update-dot" title="Versión actualizada" />}
           <button className="mobile-icon-btn mobile-drawer-btn" onClick={() => setShowInfoDrawer(true)} title="Más opciones">☰</button>
@@ -852,13 +859,14 @@ function App() {
         <header>
           <div className="logo-container"><div className="logo">8-BIT ANIMATE</div><span className="signature">by maldo</span></div>
           <div className="project-name-container">
-            <input 
-              type="text" 
+            <input
+              type="text"
               className="project-name-input"
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
               placeholder="Nombre..."
             />
+            {showUpdateDot && <span className="desktop-update-dot" title="Versión actualizada" />}
           </div>
           <TopMenu onUndo={handleUndo} onRedo={handleRedo} canUndo={canUndo} canRedo={canRedo} onSave={handleSave} onOpen={handleOpen} onExport={handleExport} onNew={handleNew} onImport={() => setIsImporting(true)} showGrid={showGrid} setShowGrid={setShowGrid} zoom={zoom} setZoom={setZoom} darkMode={darkMode} setDarkMode={setDarkMode} audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled} isFullscreen={isFullscreen} setIsFullscreen={setIsFullscreen} />
         </header>
