@@ -897,6 +897,27 @@ input[type="file"]::file-selector-button {
   font-weight: normal;
 }
 
+/* Tutorial highlight — subtle pulsing ring around a target button */
+.tutorial-highlight {
+  position: relative;
+  z-index: 1;
+}
+
+.tutorial-highlight::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 2px solid var(--accent-color);
+  border-radius: 4px;
+  pointer-events: none;
+  animation: tutorial-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes tutorial-pulse {
+  0%, 100% { opacity: 0.25; transform: scale(1); }
+  50% { opacity: 0.95; transform: scale(1.12); }
+}
+
 .mobile-frame-count {
   font-size: 0.7rem;
   opacity: 0.7;

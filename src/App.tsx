@@ -106,7 +106,11 @@ function App() {
   const [paletteExpanded, setPaletteExpanded] = useState(false);
   const [timelineExpanded, setTimelineExpanded] = useState(false);
   const [fpsDragOrigin, setFpsDragOrigin] = useState<{ y: number; fps: number } | null>(null);
+  const [tutorialStrokes, setTutorialStrokes] = useState(0);
+  const [tutorialPlayedOnce, setTutorialPlayedOnce] = useState(false);
   const isMobile = useIsMobile();
+  const highlightAddFrame = tutorialStrokes >= 2 && frames.length === 1;
+  const highlightPlay = frames.length > 1 && !tutorialPlayedOnce;
 
   const audioCtx = useRef<AudioContext | null>(null);
   const delayNode = useRef<DelayNode | null>(null);
@@ -530,6 +534,7 @@ function App() {
           onPointerDown={() => {
             if (paletteExpanded) setPaletteExpanded(false);
             if (timelineExpanded) setTimelineExpanded(false);
+            setTutorialStrokes((s) => s + 1);
           }}
         >
           <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={frames} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={playSingleNote} isRecording={isRecording} />
@@ -565,8 +570,11 @@ function App() {
               title={isRecording ? 'REC: ON' : 'REC: OFF'}
             >●</button>
             <button
-              className={`play-button ${isPlaying ? 'active' : ''}`}
-              onClick={() => setIsPlaying(!isPlaying)}
+              className={`play-button ${isPlaying ? 'active' : ''} ${highlightPlay ? 'tutorial-highlight' : ''}`}
+              onClick={() => {
+                if (!isPlaying) setTutorialPlayedOnce(true);
+                setIsPlaying(!isPlaying);
+              }}
             >{isPlaying ? 'Ⅱ' : '▶'}</button>
             <button
               className={`onion-button ${onionSkin > 0 ? 'active' : ''}`}
@@ -583,7 +591,7 @@ function App() {
                 />
               ))}
             </div>
-            <button className="mobile-add-frame-btn" onClick={addFrame} disabled={frames.length >= MAX_FRAMES} title="Agregar frame">+</button>
+            <button className={`mobile-add-frame-btn ${highlightAddFrame ? 'tutorial-highlight' : ''}`} onClick={addFrame} disabled={frames.length >= MAX_FRAMES} title="Agregar frame">+</button>
             <button className="mobile-expand-btn" onClick={() => setTimelineExpanded((v) => !v)} title={timelineExpanded ? 'Cerrar timeline' : 'Expandir timeline'}>
               {timelineExpanded ? '▾' : '▴'}
             </button>
