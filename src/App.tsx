@@ -241,7 +241,7 @@ function App() {
       osc.frequency.setValueAtTime(noteFreq, t0);
       pan.pan.setValueAtTime((xPos / width) * 2 - 1, t0);
       const volume = 0.05 * volumeFactor;
-      const attackTime = 0.2 * (1 - info.s) + 0.005;
+      const attackTime = Math.min(0.08, 0.2 * (1 - info.s) + 0.005);
 
       const neighbors = getNeighborsCount(framePixels, row * width + xPos, width, height, color);
       const decayTime = Math.min(2.0, 0.2 + (neighbors * 0.2) + (colorDensity / 100));
@@ -295,7 +295,7 @@ function App() {
         pan.pan.setValueAtTime((data.x / width) * 2 - 1, t0);
         const volume = 0.03;
         const info = getHexInfo(data.color);
-        const attackTime = 0.2 * (1 - info.s) + 0.005;
+        const attackTime = Math.min(0.08, 0.2 * (1 - info.s) + 0.005);
 
         const neighbors = getNeighborsCount(framePixels, row * width + data.x, width, height, data.color);
         const decayTime = Math.min(2.0, 0.2 + (neighbors * 0.2) + (density / 100));
