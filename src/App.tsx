@@ -575,6 +575,7 @@ function App() {
                 />
               ))}
             </div>
+            <button className="mobile-add-frame-btn" onClick={addFrame} disabled={frames.length >= MAX_FRAMES} title="Agregar frame">+</button>
             <button className="mobile-expand-btn" onClick={() => setTimelineExpanded((v) => !v)} title={timelineExpanded ? 'Cerrar timeline' : 'Expandir timeline'}>
               {timelineExpanded ? '▾' : '▴'}
             </button>
