@@ -105,6 +105,7 @@ function App() {
   const [showInfoDrawer, setShowInfoDrawer] = useState(false);
   const [paletteExpanded, setPaletteExpanded] = useState(false);
   const [timelineExpanded, setTimelineExpanded] = useState(false);
+  const [fpsDragOrigin, setFpsDragOrigin] = useState<{ y: number; fps: number } | null>(null);
   const isMobile = useIsMobile();
 
   const audioCtx = useRef<AudioContext | null>(null);
@@ -572,6 +573,35 @@ function App() {
               onClick={() => setOnionSkin((onionSkin + 1) % 5)}
               title="Papel Cebolla"
             >◎{onionSkin > 0 ? onionSkin : ''}</button>
+            <button
+              className={`mobile-fps-btn ${fpsDragOrigin ? 'adjusting' : ''}`}
+              title="Velocidad (mantener y deslizar arriba/abajo)"
+              onPointerDown={(e) => {
+                e.currentTarget.setPointerCapture(e.pointerId);
+                setFpsDragOrigin({ y: e.clientY, fps });
+              }}
+              onPointerMove={(e) => {
+                if (!fpsDragOrigin) return;
+                const delta = fpsDragOrigin.y - e.clientY;
+                const next = Math.max(1, Math.min(30, fpsDragOrigin.fps + Math.round(delta / 8)));
+                if (next !== fps) setFps(next);
+              }}
+              onPointerUp={(e) => {
+                try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+                setFpsDragOrigin(null);
+              }}
+              onPointerCancel={() => setFpsDragOrigin(null)}
+            >
+              ⏱{fps}
+              {fpsDragOrigin && (
+                <div className="mobile-fps-popover">
+                  <div className="mobile-fps-arrow">▲</div>
+                  <div className="mobile-fps-value">{fps}</div>
+                  <div className="mobile-fps-label">FPS</div>
+                  <div className="mobile-fps-arrow">▼</div>
+                </div>
+              )}
+            </button>
             <span className="mobile-frame-count">{currentFrameIndex + 1}/{frames.length}</span>
             <div className="mobile-strip-frames">
               {frames.map((_, i) => (
