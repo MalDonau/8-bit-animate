@@ -33,12 +33,14 @@ const Toolbar: React.FC<ToolbarProps> = ({ currentTool, setTool, currentColor, s
           >
             ✎
           </button>
-          <button 
-            className={currentTool === 'eraser' ? 'active' : ''} 
+          <button
+            className={currentTool === 'eraser' ? 'active' : ''}
             onClick={() => setTool('eraser')}
             title="Goma (E)"
           >
-            □
+            <svg width="18" height="18" viewBox="0 0 512 512" fill="currentColor" aria-hidden="true">
+              <path d="M497.941 273.941c18.745-18.745 18.745-49.137 0-67.882l-160-160c-18.745-18.745-49.136-18.746-67.883 0l-256 256c-18.745 18.745-18.745 49.137 0 67.882l96 96A48.004 48.004 0 0 0 144 480h356c6.627 0 12-5.373 12-12v-40c0-6.627-5.373-12-12-12H355.883l142.058-142.059zm-302.627-62.627l137.373 137.373L265.373 416H150.628l-80-80 124.686-124.686z"/>
+            </svg>
           </button>
           <button
             className={currentTool === 'fill' ? 'active' : ''}
@@ -49,12 +51,14 @@ const Toolbar: React.FC<ToolbarProps> = ({ currentTool, setTool, currentColor, s
               <path d="M512 320s-64 92.65-64 128c0 35.35 28.66 64 64 64s64-28.65 64-64-64-128-64-128zm-9.37-79.43L294.74 32.71c-12.5-12.5-32.76-12.5-45.26 0l-78.06 78.07-72.41-72.41-22.62 22.62 72.41 72.41L17.37 263.43c-12.5 12.5-12.5 32.76 0 45.26l190.86 190.86c12.5 12.5 32.76 12.5 45.26 0l249.14-249.14c12.5-12.51 12.5-32.76 0-45.26zM437.94 256H80l178.97-178.97L437.94 256z"/>
             </svg>
           </button>
-          <button 
-            className={currentTool === 'eyedropper' ? 'active' : ''} 
+          <button
+            className={currentTool === 'eyedropper' ? 'active' : ''}
             onClick={() => setTool('eyedropper')}
             title="Gotero (Alt+Click)"
           >
-            ✛
+            <svg width="18" height="18" viewBox="0 0 512 512" fill="currentColor" aria-hidden="true">
+              <path d="M50.75 333.25c-12 12-18.75 28.28-18.75 45.26V424L0 480l32 32 56-32h45.49c16.97 0 33.25-6.74 45.25-18.74l129.32-129.32-128-128L50.75 333.25zM483.88 28.12c-37.47-37.5-98.28-37.5-135.75 0l-77.09 77.09-13.1-13.1c-9.44-9.44-24.65-9.31-33.94 0l-40.97 40.97c-9.37 9.37-9.37 24.57 0 33.94l161.94 161.94c9.44 9.44 24.65 9.31 33.94 0L419.88 288c9.37-9.37 9.37-24.57 0-33.94l-13.1-13.1 77.09-77.09c37.51-37.48 37.51-98.28.01-135.75z"/>
+            </svg>
           </button>
         </div>
 
