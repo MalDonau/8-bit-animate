@@ -108,6 +108,15 @@ function App() {
   const [fpsDragOrigin, setFpsDragOrigin] = useState<{ y: number; fps: number } | null>(null);
   const [tutorialStrokes, setTutorialStrokes] = useState(0);
   const [tutorialPlayedOnce, setTutorialPlayedOnce] = useState(false);
+  const [showUpdateDot, setShowUpdateDot] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try { return localStorage.getItem('lastSeenBuild') !== __BUILD_ID__; } catch { return false; }
+  });
+  const markBuildSeen = useCallback(() => {
+    if (!showUpdateDot) return;
+    try { localStorage.setItem('lastSeenBuild', __BUILD_ID__); } catch {}
+    setShowUpdateDot(false);
+  }, [showUpdateDot]);
   const isMobile = useIsMobile();
   const highlightAddFrame = tutorialStrokes >= 2 && frames.length === 1;
   const highlightPlay = frames.length > 1 && !tutorialPlayedOnce;
@@ -127,7 +136,7 @@ function App() {
   const initAudio = useCallback(() => {
     if (audioCtx.current) return audioCtx.current;
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    
+
     const mGain = ctx.createGain();
     mGain.connect(ctx.destination);
     masterGain.current = mGain;
@@ -148,8 +157,32 @@ function App() {
     delayNode.current = dNode;
     feedbackNode.current = fNode;
     filterNode.current = lpfNode;
+
+    // iOS Safari unlock: a 1-sample silent buffer started inside the
+    // user gesture forces the context out of the locked state.
+    try {
+      const buf = ctx.createBuffer(1, 1, 22050);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.start(0);
+    } catch {}
+
     return ctx;
   }, []);
+
+  useEffect(() => {
+    const unlock = () => {
+      const ctx = initAudio();
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    };
+    window.addEventListener('pointerdown', unlock, { once: true, capture: true });
+    window.addEventListener('touchstart', unlock, { once: true, capture: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock, { capture: true } as any);
+      window.removeEventListener('touchstart', unlock, { capture: true } as any);
+    };
+  }, [initAudio]);
 
   useEffect(() => {
     if (delayNode.current && onionSkin > 0) {
@@ -540,6 +573,7 @@ function App() {
           <button className={`mobile-icon-btn ${currentTool === 'eraser' ? 'active' : ''}`} onClick={() => setCurrentTool('eraser')} title="Goma">□</button>
           <button className={`mobile-icon-btn ${currentTool === 'fill' ? 'active' : ''}`} onClick={() => setCurrentTool('fill')} title="Relleno">▨</button>
           <button className={`mobile-icon-btn ${currentTool === 'eyedropper' ? 'active' : ''}`} onClick={() => setCurrentTool('eyedropper')} title="Gotero">✛</button>
+          {showUpdateDot && <span className="mobile-update-dot" title="Versión actualizada" />}
           <button className="mobile-icon-btn mobile-drawer-btn" onClick={() => setShowInfoDrawer(true)} title="Más opciones">☰</button>
         </div>
 
@@ -550,6 +584,7 @@ function App() {
             if (paletteExpanded) setPaletteExpanded(false);
             if (timelineExpanded) setTimelineExpanded(false);
             setTutorialStrokes((s) => s + 1);
+            markBuildSeen();
           }}
         >
           <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={frames} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={playSingleNote} isRecording={isRecording} />

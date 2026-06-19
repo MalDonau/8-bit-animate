@@ -740,6 +740,26 @@ input[type="file"]::file-selector-button {
   margin-left: auto;
 }
 
+.mobile-update-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2ecc71;
+  box-shadow: 0 0 6px rgba(46, 204, 113, 0.8);
+  flex-shrink: 0;
+  margin-left: auto;
+  animation: update-dot-pulse 1.6s ease-in-out infinite;
+}
+
+.mobile-update-dot + .mobile-drawer-btn {
+  margin-left: 6px;
+}
+
+@keyframes update-dot-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.25); }
+}
+
 .mobile-canvas-area {
   flex: 1;
   min-height: 0;
