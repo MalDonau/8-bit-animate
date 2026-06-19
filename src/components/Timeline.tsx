@@ -21,6 +21,7 @@ interface TimelineProps {
   isRecording: boolean;
   setIsRecording: (rec: boolean) => void;
   hideMainPlayback?: boolean;
+  fpsControl?: React.ReactNode;
 }
 
 const Timeline: React.FC<TimelineProps> = ({
@@ -43,7 +44,8 @@ const Timeline: React.FC<TimelineProps> = ({
   lastAddedIndex,
   isRecording,
   setIsRecording,
-  hideMainPlayback = false
+  hideMainPlayback = false,
+  fpsControl
 }) => {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const isScrubbing = React.useRef(false);
@@ -144,16 +146,18 @@ const Timeline: React.FC<TimelineProps> = ({
             </button>
           </div>
         )}
-        <div className="fps-control">
-          <span>{fps} FPS</span>
-          <input
-            type="range"
-            min="1"
-            max="30"
-            value={fps}
-            onChange={(e) => setFps(parseInt(e.target.value))}
-          />
-        </div>
+        {fpsControl !== undefined ? fpsControl : (
+          <div className="fps-control">
+            <span>{fps} FPS</span>
+            <input
+              type="range"
+              min="1"
+              max="30"
+              value={fps}
+              onChange={(e) => setFps(parseInt(e.target.value))}
+            />
+          </div>
+        )}
       </div>
 
       <div 

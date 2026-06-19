@@ -573,35 +573,6 @@ function App() {
               onClick={() => setOnionSkin((onionSkin + 1) % 5)}
               title="Papel Cebolla"
             >◎{onionSkin > 0 ? onionSkin : ''}</button>
-            <button
-              className={`mobile-fps-btn ${fpsDragOrigin ? 'adjusting' : ''}`}
-              title="Velocidad (mantener y deslizar arriba/abajo)"
-              onPointerDown={(e) => {
-                e.currentTarget.setPointerCapture(e.pointerId);
-                setFpsDragOrigin({ y: e.clientY, fps });
-              }}
-              onPointerMove={(e) => {
-                if (!fpsDragOrigin) return;
-                const delta = fpsDragOrigin.y - e.clientY;
-                const next = Math.max(1, Math.min(30, fpsDragOrigin.fps + Math.round(delta / 8)));
-                if (next !== fps) setFps(next);
-              }}
-              onPointerUp={(e) => {
-                try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
-                setFpsDragOrigin(null);
-              }}
-              onPointerCancel={() => setFpsDragOrigin(null)}
-            >
-              ⏱
-              {fpsDragOrigin && (
-                <div className="mobile-fps-popover">
-                  <div className="mobile-fps-bar">
-                    <div className="mobile-fps-fill" style={{ height: `${((fps - 1) / 29) * 100}%` }} />
-                  </div>
-                  <div className="mobile-fps-value">{fps}<span className="mobile-fps-label">FPS</span></div>
-                </div>
-              )}
-            </button>
             <span className="mobile-frame-count">{currentFrameIndex + 1}/{frames.length}</span>
             <div className="mobile-strip-frames">
               {frames.map((_, i) => (
@@ -652,7 +623,59 @@ function App() {
               <h3>Timeline</h3>
               <button className="mobile-sheet-close" onClick={() => setTimelineExpanded(false)}>×</button>
             </div>
-            <Timeline frames={frames} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex} addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame} isPlaying={isPlaying} setIsPlaying={setIsPlaying} fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin} moveFrame={moveFrame} playFrameSound={playFrameSound} lastAddedIndex={lastAddedIndex} isRecording={isRecording} setIsRecording={setIsRecording} hideMainPlayback />
+            <Timeline
+              frames={frames}
+              currentFrameIndex={currentFrameIndex}
+              setCurrentFrameIndex={setCurrentFrameIndex}
+              addFrame={addFrame}
+              removeFrame={removeFrame}
+              duplicateFrame={duplicateFrame}
+              isPlaying={isPlaying}
+              setIsPlaying={setIsPlaying}
+              fps={fps}
+              setFps={setFps}
+              width={width}
+              height={height}
+              onionSkin={onionSkin}
+              setOnionSkin={setOnionSkin}
+              moveFrame={moveFrame}
+              playFrameSound={playFrameSound}
+              lastAddedIndex={lastAddedIndex}
+              isRecording={isRecording}
+              setIsRecording={setIsRecording}
+              hideMainPlayback
+              fpsControl={
+                <button
+                  className={`mobile-fps-btn ${fpsDragOrigin ? 'adjusting' : ''}`}
+                  title="Velocidad (mantener y deslizar arriba/abajo)"
+                  onPointerDown={(e) => {
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    setFpsDragOrigin({ y: e.clientY, fps });
+                  }}
+                  onPointerMove={(e) => {
+                    if (!fpsDragOrigin) return;
+                    const delta = fpsDragOrigin.y - e.clientY;
+                    const next = Math.max(1, Math.min(30, fpsDragOrigin.fps + Math.round(delta / 8)));
+                    if (next !== fps) setFps(next);
+                  }}
+                  onPointerUp={(e) => {
+                    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+                    setFpsDragOrigin(null);
+                  }}
+                  onPointerCancel={() => setFpsDragOrigin(null)}
+                >
+                  ⏱
+                  {fpsDragOrigin && (
+                    <div className="mobile-fps-popover">
+                      <div className="mobile-fps-bar">
+                        <div className="mobile-fps-fill" style={{ height: `${((fps - 1) / 29) * 100}%` }} />
+                      </div>
+                      <div className="mobile-fps-value">{fps}<span className="mobile-fps-label">FPS</span></div>
+                    </div>
+                  )}
+                </button>
+              }
+            />
           </div>
         )}
 
