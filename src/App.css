@@ -693,3 +693,308 @@ input[type="file"]::file-selector-button {
   font-size: 0.7rem;
   opacity: 0.5;
 }
+
+/* ============================== */
+/* MOBILE LAYOUT — phones only.   */
+/* Does not affect desktop.       */
+/* ============================== */
+.mobile-layout {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.mobile-top-bar {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  gap: 4px;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.mobile-icon-btn {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  padding: 0;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mobile-tools-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--border-color);
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+
+.mobile-drawer-btn {
+  margin-left: auto;
+}
+
+.mobile-canvas-area {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  background-image: radial-gradient(var(--border-color) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.mobile-canvas-area .canvas-container {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 100%;
+  aspect-ratio: var(--canvas-aspect, 1) !important;
+}
+
+.mobile-bottom-stack {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  background: var(--panel-bg);
+  border-top: 1px solid var(--border-color);
+}
+
+.mobile-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  height: 40px;
+  border-top: 1px solid var(--border-color);
+}
+
+.mobile-strip:first-child {
+  border-top: none;
+}
+
+.mobile-current-color {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--accent-color);
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.mobile-strip-swatches {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.mobile-strip-swatches .palette-color {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0,0,0,0.1);
+  cursor: pointer;
+}
+
+.mobile-expand-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.mobile-timeline-strip .rec-button,
+.mobile-timeline-strip .play-button {
+  width: 30px;
+  height: 30px;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.mobile-frame-count {
+  font-size: 0.7rem;
+  opacity: 0.7;
+  flex-shrink: 0;
+  min-width: 38px;
+}
+
+.mobile-strip-frames {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+  overflow-x: auto;
+  min-width: 0;
+  align-items: center;
+}
+
+.mobile-frame-dot {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border-radius: 2px;
+  background: var(--border-color);
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.mobile-frame-dot.active {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+}
+
+/* Expandable sheets that overlay the canvas without resizing it */
+.mobile-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 80px; /* sits above the two 40px strips */
+  background: var(--panel-bg);
+  border-top: 1px solid var(--accent-color);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.25);
+  z-index: 50;
+  max-height: 60vh;
+  overflow-y: auto;
+  animation: mobile-sheet-up 0.18s ease-out;
+}
+
+@keyframes mobile-sheet-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.mobile-sheet-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  background: var(--panel-bg);
+  z-index: 1;
+}
+
+.mobile-sheet-header h3 {
+  font-size: 0.7rem;
+  letter-spacing: 2px;
+  color: var(--accent-color);
+  margin: 0;
+  flex: 1;
+}
+
+.mobile-sheet-close {
+  width: 32px;
+  height: 32px;
+  font-size: 1.3rem;
+  padding: 0;
+}
+
+.mobile-color-picker {
+  width: 36px;
+  height: 32px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+  padding: 2px;
+  cursor: pointer;
+}
+
+.mobile-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 3px;
+  padding: 10px;
+}
+
+.mobile-palette-grid .palette-color {
+  aspect-ratio: 1;
+  border: 1px solid rgba(0,0,0,0.1);
+  cursor: pointer;
+}
+
+/* Inside the timeline sheet, restore the standard Timeline layout */
+.mobile-timeline-sheet .timeline-container {
+  padding: 8px;
+}
+
+/* Right drawer (more options) */
+.mobile-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  display: flex;
+  justify-content: flex-end;
+  animation: drawer-fade-in 0.2s ease-out;
+}
+
+@keyframes drawer-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mobile-drawer {
+  width: 86%;
+  max-width: 340px;
+  height: 100%;
+  background: var(--panel-bg);
+  overflow-y: auto;
+  padding: 14px;
+  border-left: 1px solid var(--border-color);
+  animation: drawer-slide-in 0.22s ease-out;
+}
+
+@keyframes drawer-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.mobile-drawer-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.mobile-drawer-header .project-name-input {
+  flex: 1;
+}
+
+.mobile-drawer-close {
+  width: 36px;
+  height: 36px;
+  font-size: 1.4rem;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.mobile-drawer-section {
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.mobile-drawer-section h3 {
+  font-size: 0.65rem;
+  color: var(--accent-color);
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 4px;
+  opacity: 0.7;
+}
+
+.mobile-drawer-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}

@@ -46,6 +46,19 @@ interface BgTransform {
   x: number; y: number; scale: number; rotation: number; opacity: number;
 }
 
+const useIsMobile = (breakpoint = 768) => {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia(`(max-width: ${breakpoint}px)`).matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [breakpoint]);
+  return isMobile;
+};
+
 const getNeighborsCount = (pixels: string[], index: number, width: number, height: number, color: string) => {
   const x = index % width;
   const y = Math.floor(index / width);
@@ -89,6 +102,10 @@ function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [lastAddedIndex, setLastAddedIndex] = useState<number | null>(null);
   const [isRecording, setIsRecording] = useState(true);
+  const [showInfoDrawer, setShowInfoDrawer] = useState(false);
+  const [paletteExpanded, setPaletteExpanded] = useState(false);
+  const [timelineExpanded, setTimelineExpanded] = useState(false);
+  const isMobile = useIsMobile();
 
   const audioCtx = useRef<AudioContext | null>(null);
   const delayNode = useRef<DelayNode | null>(null);
@@ -490,6 +507,195 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleUndo, handleRedo, isFullscreen]);
+
+  if (isMobile && !isFullscreen) {
+    const canvasStyle = { '--canvas-aspect': `${width} / ${height}` } as React.CSSProperties;
+    return (
+      <div className={`app-container ${darkMode ? 'dark-mode' : ''} mobile-layout`}>
+        <div className="mobile-top-bar">
+          <button onClick={handleUndo} disabled={!canUndo} className="mobile-icon-btn" title="Deshacer">↶</button>
+          <button onClick={handleRedo} disabled={!canRedo} className="mobile-icon-btn" title="Rehacer">↷</button>
+          <div className="mobile-tools-divider" />
+          <button className={`mobile-icon-btn ${currentTool === 'brush' ? 'active' : ''}`} onClick={() => setCurrentTool('brush')} title="Pincel">✎</button>
+          <button className={`mobile-icon-btn ${currentTool === 'eraser' ? 'active' : ''}`} onClick={() => setCurrentTool('eraser')} title="Goma">□</button>
+          <button className={`mobile-icon-btn ${currentTool === 'fill' ? 'active' : ''}`} onClick={() => setCurrentTool('fill')} title="Relleno">▨</button>
+          <button className={`mobile-icon-btn ${currentTool === 'eyedropper' ? 'active' : ''}`} onClick={() => setCurrentTool('eyedropper')} title="Gotero">✛</button>
+          <button className="mobile-icon-btn mobile-drawer-btn" onClick={() => setShowInfoDrawer(true)} title="Más opciones">☰</button>
+        </div>
+
+        <div className="editor-area mobile-canvas-area" style={canvasStyle}>
+          <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={frames} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={playSingleNote} isRecording={isRecording} />
+        </div>
+
+        <div className="mobile-bottom-stack">
+          <div className="mobile-strip mobile-palette-strip">
+            <button
+              className="mobile-current-color"
+              style={{ background: currentColor }}
+              onClick={() => setPaletteExpanded((v) => !v)}
+              title="Paleta"
+            />
+            <div className="mobile-strip-swatches">
+              {FULL_PALETTE.slice(0, 12).map(c => (
+                <div
+                  key={c}
+                  className={`palette-color ${currentColor.toLowerCase() === c.toLowerCase() ? 'selected' : ''}`}
+                  style={{ backgroundColor: c }}
+                  onClick={() => setCurrentColor(c)}
+                />
+              ))}
+            </div>
+            <button className="mobile-expand-btn" onClick={() => setPaletteExpanded((v) => !v)} title={paletteExpanded ? 'Cerrar paleta' : 'Expandir paleta'}>
+              {paletteExpanded ? '▾' : '▴'}
+            </button>
+          </div>
+
+          <div className="mobile-strip mobile-timeline-strip">
+            <button
+              className={`rec-button ${isRecording ? 'active' : ''}`}
+              onClick={() => setIsRecording(!isRecording)}
+              title={isRecording ? 'REC: ON' : 'REC: OFF'}
+            >●</button>
+            <button
+              className={`play-button ${isPlaying ? 'active' : ''}`}
+              onClick={() => setIsPlaying(!isPlaying)}
+            >{isPlaying ? 'Ⅱ' : '▶'}</button>
+            <span className="mobile-frame-count">{currentFrameIndex + 1}/{frames.length}</span>
+            <div className="mobile-strip-frames">
+              {frames.map((_, i) => (
+                <button
+                  key={i}
+                  className={`mobile-frame-dot ${i === currentFrameIndex ? 'active' : ''}`}
+                  onClick={() => { setCurrentFrameIndex(i); playFrameSound(frames[i]); }}
+                />
+              ))}
+            </div>
+            <button className="mobile-expand-btn" onClick={() => setTimelineExpanded((v) => !v)} title={timelineExpanded ? 'Cerrar timeline' : 'Expandir timeline'}>
+              {timelineExpanded ? '▾' : '▴'}
+            </button>
+          </div>
+        </div>
+
+        {paletteExpanded && (
+          <div className="mobile-sheet mobile-palette-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="mobile-sheet-header">
+              <h3>Paleta</h3>
+              <input
+                type="color"
+                value={currentColor}
+                onChange={(e) => setCurrentColor(e.target.value)}
+                className="mobile-color-picker"
+                title="Color personalizado"
+              />
+              <button className="mobile-sheet-close" onClick={() => setPaletteExpanded(false)}>×</button>
+            </div>
+            <div className="mobile-palette-grid">
+              {FULL_PALETTE.map(c => (
+                <div
+                  key={c}
+                  className={`palette-color ${currentColor.toLowerCase() === c.toLowerCase() ? 'selected' : ''}`}
+                  style={{ backgroundColor: c }}
+                  onClick={() => setCurrentColor(c)}
+                  title={c}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {timelineExpanded && (
+          <div className="mobile-sheet mobile-timeline-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="mobile-sheet-header">
+              <h3>Timeline</h3>
+              <button className="mobile-sheet-close" onClick={() => setTimelineExpanded(false)}>×</button>
+            </div>
+            <Timeline frames={frames} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex} addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame} isPlaying={isPlaying} setIsPlaying={setIsPlaying} fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin} moveFrame={moveFrame} playFrameSound={playFrameSound} lastAddedIndex={lastAddedIndex} isRecording={isRecording} setIsRecording={setIsRecording} />
+          </div>
+        )}
+
+        {isImporting && <ImageImporter width={width} height={height} palette={FULL_PALETTE} onImport={handleImport} onCancel={() => setIsImporting(false)} />}
+
+        {showInfoDrawer && (
+          <div className="mobile-drawer-backdrop" onClick={() => setShowInfoDrawer(false)}>
+            <aside className="mobile-drawer" onClick={(e) => e.stopPropagation()}>
+              <div className="mobile-drawer-header">
+                <input
+                  type="text"
+                  className="project-name-input"
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  placeholder="Nombre..."
+                />
+                <button className="mobile-drawer-close" onClick={() => setShowInfoDrawer(false)}>×</button>
+              </div>
+              <div className="mobile-drawer-section">
+                <h3>Archivo</h3>
+                <div className="mobile-drawer-buttons">
+                  <button onClick={() => { handleNew(); setShowInfoDrawer(false); }}>Nuevo</button>
+                  <button onClick={() => { handleOpen(); setShowInfoDrawer(false); }}>Abrir</button>
+                  <button onClick={() => { setIsImporting(true); setShowInfoDrawer(false); }}>Importar</button>
+                  <button onClick={() => { handleSave(); setShowInfoDrawer(false); }}>Guardar</button>
+                </div>
+              </div>
+              <div className="mobile-drawer-section">
+                <h3>Exportar</h3>
+                <div className="mobile-drawer-buttons">
+                  <button onClick={() => { handleExport('mp4'); setShowInfoDrawer(false); }}>Video MP4</button>
+                  <button onClick={() => { handleExport('gif'); setShowInfoDrawer(false); }}>GIF</button>
+                  <button onClick={() => { handleExport('png-seq'); setShowInfoDrawer(false); }}>PNG ZIP</button>
+                  <button onClick={() => { handleExport('jpg-seq'); setShowInfoDrawer(false); }}>JPG ZIP</button>
+                  <button onClick={() => { handleExport('png'); setShowInfoDrawer(false); }}>Frame PNG</button>
+                </div>
+              </div>
+              <div className="mobile-drawer-section">
+                <h3>Vista</h3>
+                <label><input type="checkbox" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} /> Grilla</label>
+                <div className="zoom-controls">
+                  <span>Zoom: {zoom}x</span>
+                  <button onClick={() => setZoom(Math.max(1, zoom - 1))}>-</button>
+                  <button onClick={() => setZoom(Math.min(50, zoom + 1))}>+</button>
+                </div>
+                <label><input type="checkbox" checked={darkMode} onChange={(e) => setDarkMode(e.target.checked)} /> Modo oscuro</label>
+                <label><input type="checkbox" checked={audioEnabled} onChange={(e) => setAudioEnabled(e.target.checked)} /> Audio</label>
+              </div>
+              <div className="mobile-drawer-section">
+                <h3>Información</h3>
+                <p>Frames: {frames.length} / {MAX_FRAMES}</p>
+                <p>Frame actual: {currentFrameIndex + 1}</p>
+                <p>Lienzo: {width} x {height}</p>
+              </div>
+              <div className="mobile-drawer-section">
+                <h3>Mover Capa</h3>
+                <div className="shift-cross">
+                  <button className="up" onClick={() => shiftPixels(0, -1)}>↑</button>
+                  <button className="left" onClick={() => shiftPixels(-1, 0)}>←</button>
+                  <button className="right" onClick={() => shiftPixels(1, 0)}>→</button>
+                  <button className="down" onClick={() => shiftPixels(0, 1)}>↓</button>
+                </div>
+              </div>
+              <div className="mobile-drawer-section bg-panel">
+                <h3>Imagen Referencia</h3>
+                {!bgImage ? (
+                  <div className="file-input-container">
+                    <input type="file" accept="image/*" onChange={handleBgUpload} />
+                    <span className="file-custom-text">No file</span>
+                  </div>
+                ) : (
+                  <div className="bg-controls">
+                    <button className={isEditingBg ? 'active' : ''} onClick={() => setIsEditingBg(!isEditingBg)}>{isEditingBg ? '✅ Guardar' : '🎯 Ajustar'}</button>
+                    <label>Opacidad: <input type="range" min="0" max="1" step="0.1" value={bgTransform.opacity} onChange={e => setBgTransform({ ...bgTransform, opacity: parseFloat(e.target.value) })} /></label>
+                    <label>Zoom: <input type="range" min="0.1" max="5" step="0.1" value={bgTransform.scale} onChange={e => setBgTransform({ ...bgTransform, scale: parseFloat(e.target.value) })} /></label>
+                    <label>Girar: <input type="range" min="0" max="360" step="1" value={bgTransform.rotation} onChange={e => setBgTransform({ ...bgTransform, rotation: parseInt(e.target.value) })} /></label>
+                    <button onClick={() => setBgImage(null)} className="danger">Quitar</button>
+                  </div>
+                )}
+              </div>
+            </aside>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`app-container ${darkMode ? 'dark-mode' : ''} ${isFullscreen ? 'fullscreen-mode' : ''}`}>
