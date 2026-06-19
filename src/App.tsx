@@ -523,7 +523,14 @@ function App() {
           <button className="mobile-icon-btn mobile-drawer-btn" onClick={() => setShowInfoDrawer(true)} title="Más opciones">☰</button>
         </div>
 
-        <div className="editor-area mobile-canvas-area" style={canvasStyle}>
+        <div
+          className="editor-area mobile-canvas-area"
+          style={canvasStyle}
+          onPointerDown={() => {
+            if (paletteExpanded) setPaletteExpanded(false);
+            if (timelineExpanded) setTimelineExpanded(false);
+          }}
+        >
           <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={frames} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={playSingleNote} isRecording={isRecording} />
         </div>
 
