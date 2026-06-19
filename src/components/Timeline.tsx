@@ -20,6 +20,7 @@ interface TimelineProps {
   lastAddedIndex: number | null;
   isRecording: boolean;
   setIsRecording: (rec: boolean) => void;
+  hideMainPlayback?: boolean;
 }
 
 const Timeline: React.FC<TimelineProps> = ({
@@ -41,7 +42,8 @@ const Timeline: React.FC<TimelineProps> = ({
   playFrameSound,
   lastAddedIndex,
   isRecording,
-  setIsRecording
+  setIsRecording,
+  hideMainPlayback = false
 }) => {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const isScrubbing = React.useRef(false);
@@ -118,36 +120,38 @@ const Timeline: React.FC<TimelineProps> = ({
   return (
     <div className="timeline-container">
       <div className="playback-controls">
-        <div className="main-playback">
-          <button 
-            onClick={toggleOnionSkin} 
-            className={`onion-button ${onionSkin > 0 ? 'active' : ''}`}
-            title="Papel Cebolla"
-          >
-            ◎{onionSkin > 0 ? onionSkin : ''}
-          </button>
-          <button
-            className={`play-button ${isPlaying ? 'active' : ''}`}
-            onClick={() => setIsPlaying(!isPlaying)}
-          >
-            {isPlaying ? 'Ⅱ' : '▶'}
-          </button>
-          <button
-            className={`rec-button ${isRecording ? 'active' : ''}`}
-            onClick={() => setIsRecording(!isRecording)}
-            title={isRecording ? 'REC: ON (los trazos se guardan)' : 'REC: OFF (los trazos se desvanecen)'}
-          >
-            ●
-          </button>
-        </div>
+        {!hideMainPlayback && (
+          <div className="main-playback">
+            <button
+              onClick={toggleOnionSkin}
+              className={`onion-button ${onionSkin > 0 ? 'active' : ''}`}
+              title="Papel Cebolla"
+            >
+              ◎{onionSkin > 0 ? onionSkin : ''}
+            </button>
+            <button
+              className={`play-button ${isPlaying ? 'active' : ''}`}
+              onClick={() => setIsPlaying(!isPlaying)}
+            >
+              {isPlaying ? 'Ⅱ' : '▶'}
+            </button>
+            <button
+              className={`rec-button ${isRecording ? 'active' : ''}`}
+              onClick={() => setIsRecording(!isRecording)}
+              title={isRecording ? 'REC: ON (los trazos se guardan)' : 'REC: OFF (los trazos se desvanecen)'}
+            >
+              ●
+            </button>
+          </div>
+        )}
         <div className="fps-control">
           <span>{fps} FPS</span>
-          <input 
-            type="range" 
-            min="1" 
-            max="30" 
-            value={fps} 
-            onChange={(e) => setFps(parseInt(e.target.value))} 
+          <input
+            type="range"
+            min="1"
+            max="30"
+            value={fps}
+            onChange={(e) => setFps(parseInt(e.target.value))}
           />
         </div>
       </div>

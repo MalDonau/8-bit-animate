@@ -813,7 +813,8 @@ input[type="file"]::file-selector-button {
 }
 
 .mobile-timeline-strip .rec-button,
-.mobile-timeline-strip .play-button {
+.mobile-timeline-strip .play-button,
+.mobile-timeline-strip .onion-button {
   width: 30px;
   height: 30px;
   font-size: 0.9rem;

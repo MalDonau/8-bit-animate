@@ -560,6 +560,11 @@ function App() {
               className={`play-button ${isPlaying ? 'active' : ''}`}
               onClick={() => setIsPlaying(!isPlaying)}
             >{isPlaying ? 'Ⅱ' : '▶'}</button>
+            <button
+              className={`onion-button ${onionSkin > 0 ? 'active' : ''}`}
+              onClick={() => setOnionSkin((onionSkin + 1) % 5)}
+              title="Papel Cebolla"
+            >◎{onionSkin > 0 ? onionSkin : ''}</button>
             <span className="mobile-frame-count">{currentFrameIndex + 1}/{frames.length}</span>
             <div className="mobile-strip-frames">
               {frames.map((_, i) => (
@@ -609,7 +614,7 @@ function App() {
               <h3>Timeline</h3>
               <button className="mobile-sheet-close" onClick={() => setTimelineExpanded(false)}>×</button>
             </div>
-            <Timeline frames={frames} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex} addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame} isPlaying={isPlaying} setIsPlaying={setIsPlaying} fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin} moveFrame={moveFrame} playFrameSound={playFrameSound} lastAddedIndex={lastAddedIndex} isRecording={isRecording} setIsRecording={setIsRecording} />
+            <Timeline frames={frames} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex} addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame} isPlaying={isPlaying} setIsPlaying={setIsPlaying} fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin} moveFrame={moveFrame} playFrameSound={playFrameSound} lastAddedIndex={lastAddedIndex} isRecording={isRecording} setIsRecording={setIsRecording} hideMainPlayback />
           </div>
         )}
 
