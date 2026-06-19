@@ -592,13 +592,13 @@ function App() {
               }}
               onPointerCancel={() => setFpsDragOrigin(null)}
             >
-              ⏱{fps}
+              ⏱
               {fpsDragOrigin && (
                 <div className="mobile-fps-popover">
-                  <div className="mobile-fps-arrow">▲</div>
-                  <div className="mobile-fps-value">{fps}</div>
-                  <div className="mobile-fps-label">FPS</div>
-                  <div className="mobile-fps-arrow">▼</div>
+                  <div className="mobile-fps-bar">
+                    <div className="mobile-fps-fill" style={{ height: `${((fps - 1) / 29) * 100}%` }} />
+                  </div>
+                  <div className="mobile-fps-value">{fps}<span className="mobile-fps-label">FPS</span></div>
                 </div>
               )}
             </button>
