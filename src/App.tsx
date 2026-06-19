@@ -158,8 +158,8 @@ function App() {
     feedbackNode.current = fNode;
     filterNode.current = lpfNode;
 
-    // iOS Safari unlock: a 1-sample silent buffer started inside the
-    // user gesture forces the context out of the locked state.
+    // iOS WebKit unlock — try every known trick inside the same gesture.
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     try {
       const buf = ctx.createBuffer(1, 1, 22050);
       const src = ctx.createBufferSource();
@@ -167,20 +167,39 @@ function App() {
       src.connect(ctx.destination);
       src.start(0);
     } catch {}
+    try {
+      const a = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
+      a.preload = 'auto';
+      (a as any).playsInline = true;
+      const p = a.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch {}
 
     return ctx;
   }, []);
 
   useEffect(() => {
     const unlock = () => {
+      // iOS WebKit: an HTMLAudioElement playing a silent wav inside the
+      // user gesture grants the page an audio session, which then lets
+      // Web Audio actually produce output.
+      try {
+        const a = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
+        a.preload = 'auto';
+        (a as any).playsInline = true;
+        const p = a.play();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      } catch {}
       const ctx = initAudio();
       if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     };
     window.addEventListener('pointerdown', unlock, { once: true, capture: true });
     window.addEventListener('touchstart', unlock, { once: true, capture: true });
+    window.addEventListener('click', unlock, { once: true, capture: true });
     return () => {
       window.removeEventListener('pointerdown', unlock, { capture: true } as any);
       window.removeEventListener('touchstart', unlock, { capture: true } as any);
+      window.removeEventListener('click', unlock, { capture: true } as any);
     };
   }, [initAudio]);
 
@@ -228,34 +247,43 @@ function App() {
   const playSingleNote = useCallback((row: number, color: string, xPos: number, volumeFactor = 1, colorDensity = 1) => {
     if (!audioEnabled || !color || color === 'transparent' || color.toLowerCase() === '#ffffff') return;
     const ctx = initAudio();
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-    const info = getHexInfo(color);
-    const framePixels = framesRef.current[currentFrameIndex];
-    const currentScale = getResultantScale(framePixels);
-    const noteFreq = currentScale[31 - row] || 440;
-    const t0 = ctx.currentTime + 0.05;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    const pan = ctx.createStereoPanner();
-    osc.type = getWaveformByColor(color);
-    osc.frequency.setValueAtTime(noteFreq, t0);
-    pan.pan.setValueAtTime((xPos / width) * 2 - 1, t0);
-    const volume = 0.05 * volumeFactor;
-    const attackTime = Math.min(0.08, 0.2 * (1 - info.s) + 0.005);
+    const schedule = () => {
+      const info = getHexInfo(color);
+      const framePixels = framesRef.current[currentFrameIndex];
+      const currentScale = getResultantScale(framePixels);
+      const noteFreq = currentScale[31 - row] || 440;
+      const t0 = ctx.currentTime + 0.02;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const pan = ctx.createStereoPanner();
+      osc.type = getWaveformByColor(color);
+      osc.frequency.setValueAtTime(noteFreq, t0);
+      pan.pan.setValueAtTime((xPos / width) * 2 - 1, t0);
+      const volume = 0.05 * volumeFactor;
+      const attackTime = Math.min(0.08, 0.2 * (1 - info.s) + 0.005);
 
-    const neighbors = getNeighborsCount(framePixels, row * width + xPos, width, height, color);
-    const decayTime = Math.min(2.0, Math.max(attackTime + 0.25, 0.2 + (neighbors * 0.2) + (colorDensity / 100)));
+      const neighbors = getNeighborsCount(framePixels, row * width + xPos, width, height, color);
+      const decayTime = Math.min(2.0, Math.max(attackTime + 0.25, 0.2 + (neighbors * 0.2) + (colorDensity / 100)));
 
-    gain.gain.setValueAtTime(0, t0);
-    gain.gain.linearRampToValueAtTime(volume, t0 + attackTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + decayTime);
-    osc.connect(pan);
-    pan.connect(gain);
-    if (filterNode.current) gain.connect(filterNode.current);
-    if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
-    gain.connect(masterGain.current || ctx.destination);
-    osc.start(t0);
-    osc.stop(t0 + decayTime + 0.1);
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(volume, t0 + attackTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + decayTime);
+      osc.connect(pan);
+      pan.connect(gain);
+      if (filterNode.current) gain.connect(filterNode.current);
+      if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
+      gain.connect(masterGain.current || ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + decayTime + 0.1);
+    };
+    if (ctx.state === 'running') {
+      schedule();
+    } else {
+      let fired = false;
+      const safe = () => { if (!fired) { fired = true; schedule(); } };
+      ctx.resume().then(safe, safe);
+      setTimeout(safe, 200);
+    }
   }, [audioEnabled, initAudio, width, height, onionSkin, currentFrameIndex, getResultantScale]);
 
   const playFrameSound = useCallback((framePixels: string[]) => {
@@ -275,35 +303,44 @@ function App() {
     const maxNotes = Math.min(5, activeRows.length);
     const selectedRows = activeRows.sort(() => 0.5 - Math.random()).slice(0, maxNotes);
     const ctx = initAudio();
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-    selectedRows.forEach(row => {
-      const data = pixelsByRow.get(row)![0];
-      const density = colorCounts.get(data.color) || 1;
-      const noteFreq = currentScale[31 - row] || 440;
-      const t0 = ctx.currentTime + 0.05;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const pan = ctx.createStereoPanner();
-      osc.type = getWaveformByColor(data.color);
-      osc.frequency.setValueAtTime(noteFreq, t0);
-      pan.pan.setValueAtTime((data.x / width) * 2 - 1, t0);
-      const volume = 0.03;
-      const info = getHexInfo(data.color);
-      const attackTime = Math.min(0.08, 0.2 * (1 - info.s) + 0.005);
+    const scheduleAll = () => {
+      selectedRows.forEach(row => {
+        const data = pixelsByRow.get(row)![0];
+        const density = colorCounts.get(data.color) || 1;
+        const noteFreq = currentScale[31 - row] || 440;
+        const t0 = ctx.currentTime + 0.02;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const pan = ctx.createStereoPanner();
+        osc.type = getWaveformByColor(data.color);
+        osc.frequency.setValueAtTime(noteFreq, t0);
+        pan.pan.setValueAtTime((data.x / width) * 2 - 1, t0);
+        const volume = 0.03;
+        const info = getHexInfo(data.color);
+        const attackTime = Math.min(0.08, 0.2 * (1 - info.s) + 0.005);
 
-      const neighbors = getNeighborsCount(framePixels, row * width + data.x, width, height, data.color);
-      const decayTime = Math.min(2.0, Math.max(attackTime + 0.25, 0.2 + (neighbors * 0.2) + (density / 100)));
+        const neighbors = getNeighborsCount(framePixels, row * width + data.x, width, height, data.color);
+        const decayTime = Math.min(2.0, Math.max(attackTime + 0.25, 0.2 + (neighbors * 0.2) + (density / 100)));
 
-      gain.gain.setValueAtTime(0, t0);
-      gain.gain.linearRampToValueAtTime(volume, t0 + attackTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + decayTime);
-      osc.connect(pan);
-      pan.connect(gain);
-      if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
-      gain.connect(masterGain.current || ctx.destination);
-      osc.start(t0);
-      osc.stop(t0 + decayTime + 0.1);
-    });
+        gain.gain.setValueAtTime(0, t0);
+        gain.gain.linearRampToValueAtTime(volume, t0 + attackTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + decayTime);
+        osc.connect(pan);
+        pan.connect(gain);
+        if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
+        gain.connect(masterGain.current || ctx.destination);
+        osc.start(t0);
+        osc.stop(t0 + decayTime + 0.1);
+      });
+    };
+    if (ctx.state === 'running') {
+      scheduleAll();
+    } else {
+      let fired = false;
+      const safe = () => { if (!fired) { fired = true; scheduleAll(); } };
+      ctx.resume().then(safe, safe);
+      setTimeout(safe, 200);
+    }
   }, [initAudio, width, height, onionSkin, getResultantScale]);
 
   useEffect(() => {
