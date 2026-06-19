@@ -195,33 +195,40 @@ function App() {
   const playSingleNote = useCallback((row: number, color: string, xPos: number, volumeFactor = 1, colorDensity = 1) => {
     if (!audioEnabled || !color || color === 'transparent' || color.toLowerCase() === '#ffffff') return;
     const ctx = initAudio();
-    if (ctx.state === 'suspended') ctx.resume();
-    const info = getHexInfo(color);
-    const framePixels = framesRef.current[currentFrameIndex];
-    const currentScale = getResultantScale(framePixels);
-    const noteFreq = currentScale[31 - row] || 440;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    const pan = ctx.createStereoPanner();
-    osc.type = getWaveformByColor(color);
-    osc.frequency.setValueAtTime(noteFreq, ctx.currentTime);
-    pan.pan.setValueAtTime((xPos / width) * 2 - 1, ctx.currentTime);
-    const volume = 0.05 * volumeFactor;
-    const attackTime = 0.2 * (1 - info.s) + 0.005;
+    const schedule = () => {
+      const info = getHexInfo(color);
+      const framePixels = framesRef.current[currentFrameIndex];
+      const currentScale = getResultantScale(framePixels);
+      const noteFreq = currentScale[31 - row] || 440;
+      const t0 = ctx.currentTime + 0.01;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const pan = ctx.createStereoPanner();
+      osc.type = getWaveformByColor(color);
+      osc.frequency.setValueAtTime(noteFreq, t0);
+      pan.pan.setValueAtTime((xPos / width) * 2 - 1, t0);
+      const volume = 0.05 * volumeFactor;
+      const attackTime = 0.2 * (1 - info.s) + 0.005;
 
-    const neighbors = getNeighborsCount(framePixels, row * width + xPos, width, height, color);
-    const decayTime = Math.min(2.0, 0.2 + (neighbors * 0.2) + (colorDensity / 100));
+      const neighbors = getNeighborsCount(framePixels, row * width + xPos, width, height, color);
+      const decayTime = Math.min(2.0, 0.2 + (neighbors * 0.2) + (colorDensity / 100));
 
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + attackTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + decayTime);
-    osc.connect(pan);
-    pan.connect(gain);
-    if (filterNode.current) gain.connect(filterNode.current);
-    if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
-    gain.connect(masterGain.current || ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + decayTime + 0.1);
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(volume, t0 + attackTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + decayTime);
+      osc.connect(pan);
+      pan.connect(gain);
+      if (filterNode.current) gain.connect(filterNode.current);
+      if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
+      gain.connect(masterGain.current || ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + decayTime + 0.1);
+    };
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(schedule).catch(() => {});
+    } else {
+      schedule();
+    }
   }, [audioEnabled, initAudio, width, height, onionSkin, currentFrameIndex, getResultantScale]);
 
   const playFrameSound = useCallback((framePixels: string[]) => {
@@ -240,34 +247,42 @@ function App() {
     const currentScale = getResultantScale(framePixels);
     const maxNotes = Math.min(5, activeRows.length);
     const selectedRows = activeRows.sort(() => 0.5 - Math.random()).slice(0, maxNotes);
-    selectedRows.forEach(row => {
-      const data = pixelsByRow.get(row)![0];
-      const density = colorCounts.get(data.color) || 1;
-      const noteFreq = currentScale[31 - row] || 440;
-      const ctx = initAudio();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const pan = ctx.createStereoPanner();
-      osc.type = getWaveformByColor(data.color);
-      osc.frequency.setValueAtTime(noteFreq, ctx.currentTime);
-      pan.pan.setValueAtTime((data.x / width) * 2 - 1, ctx.currentTime);
-      const volume = 0.03;
-      const info = getHexInfo(data.color);
-      const attackTime = 0.2 * (1 - info.s) + 0.005;
+    const ctx = initAudio();
+    const scheduleAll = () => {
+      selectedRows.forEach(row => {
+        const data = pixelsByRow.get(row)![0];
+        const density = colorCounts.get(data.color) || 1;
+        const noteFreq = currentScale[31 - row] || 440;
+        const t0 = ctx.currentTime + 0.01;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const pan = ctx.createStereoPanner();
+        osc.type = getWaveformByColor(data.color);
+        osc.frequency.setValueAtTime(noteFreq, t0);
+        pan.pan.setValueAtTime((data.x / width) * 2 - 1, t0);
+        const volume = 0.03;
+        const info = getHexInfo(data.color);
+        const attackTime = 0.2 * (1 - info.s) + 0.005;
 
-      const neighbors = getNeighborsCount(framePixels, row * width + data.x, width, height, data.color);
-      const decayTime = Math.min(2.0, 0.2 + (neighbors * 0.2) + (density / 100));
+        const neighbors = getNeighborsCount(framePixels, row * width + data.x, width, height, data.color);
+        const decayTime = Math.min(2.0, 0.2 + (neighbors * 0.2) + (density / 100));
 
-      gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + attackTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + decayTime);
-      osc.connect(pan);
-      pan.connect(gain);
-      if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
-      gain.connect(masterGain.current || ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + decayTime + 0.1);
-    });
+        gain.gain.setValueAtTime(0, t0);
+        gain.gain.linearRampToValueAtTime(volume, t0 + attackTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + decayTime);
+        osc.connect(pan);
+        pan.connect(gain);
+        if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
+        gain.connect(masterGain.current || ctx.destination);
+        osc.start(t0);
+        osc.stop(t0 + decayTime + 0.1);
+      });
+    };
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(scheduleAll).catch(() => {});
+    } else {
+      scheduleAll();
+    }
   }, [initAudio, width, height, onionSkin, getResultantScale]);
 
   useEffect(() => {
