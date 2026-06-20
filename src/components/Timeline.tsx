@@ -119,6 +119,14 @@ const Timeline: React.FC<TimelineProps> = ({
     }
   }, [frames.length]);
 
+  // Keep the currently selected thumbnail visible (centered) when the
+  // selection changes — useful when scrubbing from outside the strip,
+  // e.g. via the mobile bottom dots.
+  React.useEffect(() => {
+    const selected = scrollRef.current?.querySelector('.frame-thumbnail.selected') as HTMLElement | null;
+    selected?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [currentFrameIndex]);
+
   return (
     <div className="timeline-container">
       <div className="playback-controls">
