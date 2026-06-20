@@ -1181,8 +1181,9 @@ input[type="file"]::file-selector-button {
 }
 
 .mobile-start-sub {
-  font-size: 0.7rem;
-  opacity: 0.6;
+  font-size: 0.75rem;
+  color: var(--accent-color);
+  opacity: 0.9;
   letter-spacing: 3px;
   margin-bottom: 36px;
 }

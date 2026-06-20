@@ -46,6 +46,18 @@ interface BgTransform {
   x: number; y: number; scale: number; rotation: number; opacity: number;
 }
 
+const getByWord = () => {
+  if (typeof navigator === 'undefined') return 'by';
+  const lang = (navigator.language || 'en').toLowerCase();
+  if (lang.startsWith('es') || lang.startsWith('pt')) return 'por';
+  if (lang.startsWith('fr')) return 'par';
+  if (lang.startsWith('it')) return 'di';
+  if (lang.startsWith('de')) return 'von';
+  if (lang.startsWith('ca')) return 'per';
+  if (lang.startsWith('nl')) return 'door';
+  return 'by';
+};
+
 const useIsMobile = (breakpoint = 768) => {
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia(`(max-width: ${breakpoint}px)`).matches
@@ -610,7 +622,7 @@ function App() {
           <div className="mobile-start-overlay" onClick={handleStartTap}>
             <div className="mobile-start-text">
               <div className="mobile-start-title">8-BIT ANIMATE</div>
-              <div className="mobile-start-sub">by maldo</div>
+              <div className="mobile-start-sub">{getByWord()} Maldo</div>
               <div className="mobile-start-hint">Tocá para empezar</div>
             </div>
           </div>
