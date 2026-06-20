@@ -334,13 +334,26 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     ctx.fillStyle = canvasBgColor;
     ctx.fillRect(0, 0, SIZE, SIZE);
     ctx.drawImage(src, sx, sy, SRC_PX, SRC_PX, 0, 0, SIZE, SIZE);
+    const pxSize = SIZE / SRC_PX;
+    if (showGrid) {
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.28)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i <= SRC_PX; i++) {
+        const v = Math.round(i * pxSize) + 0.5;
+        ctx.moveTo(v, 0);
+        ctx.lineTo(v, SIZE);
+        ctx.moveTo(0, v);
+        ctx.lineTo(SIZE, v);
+      }
+      ctx.stroke();
+    }
     const offX = Math.floor(magnifier.canvasX - sx);
     const offY = Math.floor(magnifier.canvasY - sy);
-    const pxSize = SIZE / SRC_PX;
     ctx.strokeStyle = 'rgba(255, 50, 50, 0.9)';
     ctx.lineWidth = 2;
     ctx.strokeRect(offX * pxSize, offY * pxSize, pxSize, pxSize);
-  }, [magnifier, pixels, canvasBgColor, width, height]);
+  }, [magnifier, pixels, canvasBgColor, width, height, showGrid]);
 
   const MAG_SIZE = 140;
   const MAG_OFFSET = 60;
