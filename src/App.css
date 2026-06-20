@@ -793,7 +793,7 @@ input[type="file"]::file-selector-button {
   min-height: 0;
   overflow: hidden;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   padding: 4px;
   container-type: size;
