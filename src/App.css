@@ -279,6 +279,30 @@ button:disabled {
   aspect-ratio: 1;
   border: 1px solid rgba(0,0,0,0.05);
   cursor: pointer;
+  position: relative;
+  touch-action: none;
+}
+
+.palette-color.holding {
+  z-index: 5;
+  transform: scale(1.25);
+  box-shadow: 0 0 0 2px var(--accent-color), 0 0 12px var(--accent-color);
+  transition: transform 0.18s ease-out;
+}
+
+.palette-color.holding::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  border-top-color: var(--accent-color);
+  animation: hold-spin var(--hold-ms, 3000ms) linear forwards;
+  pointer-events: none;
+}
+
+@keyframes hold-spin {
+  to { transform: rotate(360deg); }
 }
 
 .dark-mode .palette-color {

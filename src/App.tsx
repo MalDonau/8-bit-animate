@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 import PixelCanvas from './components/PixelCanvas';
-import Toolbar, { DB32_PALETTE, EXTRA_COLORS } from './components/Toolbar';
+import Toolbar, { DB32_PALETTE, EXTRA_COLORS, Swatch } from './components/Toolbar';
 import TopMenu from './components/TopMenu';
 import ImageImporter from './components/ImageImporter';
 import Timeline from './components/Timeline';
@@ -136,6 +136,7 @@ function App() {
   const [tutorialPlayedOnce, setTutorialPlayedOnce] = useState(false);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [exportWithGrid, setExportWithGrid] = useState(false);
+  const [canvasBgColor, setCanvasBgColor] = useState('#ffffff');
   const [showUpdateDot, setShowUpdateDot] = useState(() => {
     if (typeof window === 'undefined') return false;
     try { return localStorage.getItem('lastSeenBuild') !== __BUILD_ID__; } catch { return false; }
@@ -517,7 +518,7 @@ function App() {
         const y = Math.floor(index / width);
         if (color === 'transparent') {
           if (format === 'jpg-seq' || format === 'mp4') {
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = canvasBgColor;
             ctx.fillRect(x * pixelSizeX, y * pixelSizeY, pixelSizeX, pixelSizeY);
           }
           return;
@@ -604,7 +605,7 @@ function App() {
           return;
         }
 
-        recordCtx.fillStyle = '#ffffff';
+        recordCtx.fillStyle = canvasBgColor;
         recordCtx.fillRect(0, 0, exportWidth, exportHeight);
         if (sourceCanvas) {
           recordCtx.imageSmoothingEnabled = false;
@@ -697,7 +698,7 @@ function App() {
             markBuildSeen();
           }}
         >
-          <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={frames} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={playSingleNote} isRecording={isRecording} />
+          <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={frames} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={playSingleNote} isRecording={isRecording} canvasBgColor={canvasBgColor} />
         </div>
 
         <div className="mobile-bottom-stack">
@@ -710,11 +711,12 @@ function App() {
             />
             <div className="mobile-strip-swatches">
               {FULL_PALETTE.slice(0, 12).map(c => (
-                <div
+                <Swatch
                   key={c}
-                  className={`palette-color ${currentColor.toLowerCase() === c.toLowerCase() ? 'selected' : ''}`}
-                  style={{ backgroundColor: c }}
-                  onClick={() => setCurrentColor(c)}
+                  color={c}
+                  selected={currentColor.toLowerCase() === c.toLowerCase()}
+                  onSelect={() => setCurrentColor(c)}
+                  onLongPress={() => setCanvasBgColor(c)}
                 />
               ))}
             </div>
@@ -773,12 +775,12 @@ function App() {
             </div>
             <div className="mobile-palette-grid">
               {FULL_PALETTE.map(c => (
-                <div
+                <Swatch
                   key={c}
-                  className={`palette-color ${currentColor.toLowerCase() === c.toLowerCase() ? 'selected' : ''}`}
-                  style={{ backgroundColor: c }}
-                  onClick={() => setCurrentColor(c)}
-                  title={c}
+                  color={c}
+                  selected={currentColor.toLowerCase() === c.toLowerCase()}
+                  onSelect={() => setCurrentColor(c)}
+                  onLongPress={() => setCanvasBgColor(c)}
                 />
               ))}
             </div>
@@ -954,14 +956,14 @@ function App() {
         </header>
       )}
       <main>
-        {!isFullscreen && <Toolbar currentTool={currentTool} setTool={setCurrentTool} currentColor={currentColor} setColor={setCurrentColor} />}
+        {!isFullscreen && <Toolbar currentTool={currentTool} setTool={setCurrentTool} currentColor={currentColor} setColor={setCurrentColor} setCanvasBgColor={setCanvasBgColor} />}
         <div className="editor-area">
           {isFullscreen && (
             <button className="exit-fullscreen-btn" onClick={() => setIsFullscreen(false)}>
               Salir Pantalla Completa (Esc)
             </button>
           )}
-          <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={frames} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={playSingleNote} isRecording={isRecording} />
+          <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={frames} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={playSingleNote} isRecording={isRecording} canvasBgColor={canvasBgColor} />
         </div>
         {isImporting && <ImageImporter width={width} height={height} palette={FULL_PALETTE} onImport={handleImport} onCancel={() => setIsImporting(false)} />}
         {!isFullscreen && (

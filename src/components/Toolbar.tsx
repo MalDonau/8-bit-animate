@@ -1,11 +1,64 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 
 interface ToolbarProps {
   currentTool: string;
   setTool: (tool: 'brush' | 'eraser' | 'fill' | 'eyedropper') => void;
   currentColor: string;
   setColor: (color: string) => void;
+  setCanvasBgColor: (color: string) => void;
 }
+
+interface SwatchProps {
+  color: string;
+  selected: boolean;
+  onSelect: () => void;
+  onLongPress?: () => void;
+  longPressMs?: number;
+  className?: string;
+}
+
+export const Swatch: React.FC<SwatchProps> = ({
+  color, selected, onSelect, onLongPress, longPressMs = 3000, className,
+}) => {
+  const timerRef = useRef<number | null>(null);
+  const firedRef = useRef(false);
+  const [holding, setHolding] = useState(false);
+
+  const cancel = () => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setHolding(false);
+  };
+
+  return (
+    <div
+      className={`palette-color ${selected ? 'selected' : ''} ${holding ? 'holding' : ''} ${className || ''}`}
+      style={{ backgroundColor: color, ['--hold-ms' as any]: `${longPressMs}ms` }}
+      title={color}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        firedRef.current = false;
+        if (onLongPress) {
+          setHolding(true);
+          timerRef.current = window.setTimeout(() => {
+            firedRef.current = true;
+            setHolding(false);
+            onLongPress();
+          }, longPressMs);
+        }
+      }}
+      onPointerUp={(e) => {
+        try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+        cancel();
+        if (!firedRef.current) onSelect();
+      }}
+      onPointerLeave={cancel}
+      onPointerCancel={cancel}
+    />
+  );
+};
 
 // Paleta DB32 (DawnBringer 32) - Un estándar en Pixel Art
 export const DB32_PALETTE = [
@@ -20,7 +73,7 @@ export const EXTRA_COLORS = [
   '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffa500', '#8b4513', '#4b0082'
 ];
 
-const Toolbar: React.FC<ToolbarProps> = ({ currentTool, setTool, currentColor, setColor }) => {
+const Toolbar: React.FC<ToolbarProps> = ({ currentTool, setTool, currentColor, setColor, setCanvasBgColor }) => {
   return (
     <div className="toolbar">
       <div className="tool-section">
@@ -78,12 +131,12 @@ const Toolbar: React.FC<ToolbarProps> = ({ currentTool, setTool, currentColor, s
         <h3>Paleta DB32</h3>
         <div className="palette">
           {DB32_PALETTE.map(color => (
-            <div 
-              key={color} 
-              className={`palette-color ${currentColor.toLowerCase() === color.toLowerCase() ? 'selected' : ''}`}
-              style={{ backgroundColor: color }}
-              onClick={() => setColor(color)}
-              title={color}
+            <Swatch
+              key={color}
+              color={color}
+              selected={currentColor.toLowerCase() === color.toLowerCase()}
+              onSelect={() => setColor(color)}
+              onLongPress={() => setCanvasBgColor(color)}
             />
           ))}
         </div>
@@ -91,12 +144,12 @@ const Toolbar: React.FC<ToolbarProps> = ({ currentTool, setTool, currentColor, s
         <h3 style={{ marginTop: '15px' }}>Extras</h3>
         <div className="palette">
           {EXTRA_COLORS.map(color => (
-            <div 
-              key={color} 
-              className={`palette-color ${currentColor.toLowerCase() === color.toLowerCase() ? 'selected' : ''}`}
-              style={{ backgroundColor: color }}
-              onClick={() => setColor(color)}
-              title={color}
+            <Swatch
+              key={color}
+              color={color}
+              selected={currentColor.toLowerCase() === color.toLowerCase()}
+              onSelect={() => setColor(color)}
+              onLongPress={() => setCanvasBgColor(color)}
             />
           ))}
         </div>

@@ -31,6 +31,7 @@ interface PixelCanvasProps {
   isPlaying?: boolean;
   playPixelSound?: (row: number, color: string, xPos: number, volumeFactor: number, colorDensity: number) => void;
   isRecording?: boolean;
+  canvasBgColor?: string;
 }
 
 const EPHEMERAL_DURATION = 1000;
@@ -40,7 +41,7 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
   pixels, setPixels, width, height, color, setColor, tool, zoom, showGrid,
   onHistoryPush, currentFrameIndex = 0, frames = [], onionSkin = 0,
   bgImage, bgTransform, setBgTransform, isEditingBg, isPlaying,
-  playPixelSound, isRecording = false
+  playPixelSound, isRecording = false, canvasBgColor = '#ffffff'
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -275,7 +276,7 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       style={{
         width: width * zoom, height: height * zoom, flexShrink: 0, position: 'relative',
         cursor: isEditingBg ? (isDrawing ? 'grabbing' : 'grab') : (tool === 'eyedropper' ? 'crosshair' : 'default'),
-        background: '#fff', overflow: 'hidden', touchAction: 'none'
+        background: canvasBgColor, overflow: 'hidden', touchAction: 'none'
       }}
     >
       {bgImage && bgTransform && (
