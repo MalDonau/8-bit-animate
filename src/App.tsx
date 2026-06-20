@@ -531,20 +531,25 @@ function App() {
         gif.render();
       } catch (err) { alert('Error al generar el GIF.'); }
     } else if (format === 'mp4') {
+      const durationInput = prompt('¿Duración de la captura (segundos)?', '6');
+      if (durationInput === null) return;
+      const duration = Math.max(1, Math.min(60, parseFloat(durationInput) || 6)) * 1000;
+
       const exportWidth = 512;
       const exportHeight = 512;
       const recordCanvas = document.createElement('canvas');
       recordCanvas.width = exportWidth;
       recordCanvas.height = exportHeight;
       const recordCtx = recordCanvas.getContext('2d')!;
-      
+      recordCtx.imageSmoothingEnabled = false;
+
       const ctx = initAudio();
       const audioDest = ctx.createMediaStreamDestination();
       if (masterGain.current) {
         masterGain.current.connect(audioDest);
       }
 
-      const canvasStream = recordCanvas.captureStream(fps);
+      const canvasStream = recordCanvas.captureStream(60);
       const combinedStream = new MediaStream([
         ...canvasStream.getVideoTracks(),
         ...audioDest.stream.getAudioTracks()
@@ -569,10 +574,9 @@ function App() {
 
       mediaRecorder.start();
 
-      const duration = 6000; // 6 seconds
       const startTime = Date.now();
-      let lastFrameIdx = -1;
-      
+      const sourceCanvas = document.querySelector('.canvas-container canvas') as HTMLCanvasElement | null;
+
       const renderLoop = () => {
         const elapsed = Date.now() - startTime;
         if (elapsed >= duration) {
@@ -580,21 +584,13 @@ function App() {
           return;
         }
 
-        const totalFramesInAnimation = frames.length;
-        const frameDuration = 1000 / fps;
-        const currentFrameIdx = Math.floor((elapsed / frameDuration) % totalFramesInAnimation);
-        
-        if (currentFrameIdx !== lastFrameIdx) {
-          playFrameSound(frames[currentFrameIdx]);
-          lastFrameIdx = currentFrameIdx;
+        recordCtx.fillStyle = '#ffffff';
+        recordCtx.fillRect(0, 0, exportWidth, exportHeight);
+        if (sourceCanvas) {
+          recordCtx.imageSmoothingEnabled = false;
+          recordCtx.drawImage(sourceCanvas, 0, 0, exportWidth, exportHeight);
         }
 
-        const frameCanvas = getFrameCanvas(frames[currentFrameIdx], exportWidth, exportHeight);
-        if (frameCanvas) {
-          recordCtx.clearRect(0, 0, exportWidth, exportHeight);
-          recordCtx.drawImage(frameCanvas, 0, 0);
-        }
-        
         requestAnimationFrame(renderLoop);
       };
 
@@ -634,6 +630,7 @@ function App() {
       <div className={`app-container ${darkMode ? 'dark-mode' : ''} mobile-layout`}>
         {!audioUnlocked && (
           <div className="mobile-start-overlay" onClick={handleStartTap}>
+            {showUpdateDot && <span className="mobile-start-update-dot" title="Versión actualizada" />}
             <div className="mobile-start-text">
               <div className="mobile-start-title">8-BIT ANIMATE</div>
               <div className="mobile-start-sub">{getByWord()} Maldo</div>

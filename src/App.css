@@ -1166,6 +1166,18 @@ input[type="file"]::file-selector-button {
   -webkit-tap-highlight-color: transparent;
 }
 
+.mobile-start-update-dot {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #2ecc71;
+  box-shadow: 0 0 8px rgba(46, 204, 113, 0.85);
+  animation: update-dot-pulse 1.6s ease-in-out infinite;
+}
+
 .mobile-start-text {
   text-align: center;
   padding: 20px;
