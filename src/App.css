@@ -1154,6 +1154,51 @@ input[type="file"]::file-selector-button {
   gap: 6px;
 }
 
+.mobile-start-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--bg-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-start-text {
+  text-align: center;
+  padding: 20px;
+}
+
+.mobile-start-title {
+  font-size: 1.8rem;
+  color: var(--accent-color);
+  letter-spacing: 4px;
+  font-weight: bold;
+  text-shadow: var(--accent-glow);
+  margin-bottom: 6px;
+}
+
+.mobile-start-sub {
+  font-size: 0.7rem;
+  opacity: 0.6;
+  letter-spacing: 3px;
+  margin-bottom: 36px;
+}
+
+.mobile-start-hint {
+  font-size: 0.85rem;
+  color: var(--accent-color);
+  letter-spacing: 2px;
+  animation: hint-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes hint-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
 @media (max-width: 380px) {
   .mobile-icon-btn {
     width: 34px;

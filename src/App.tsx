@@ -108,6 +108,7 @@ function App() {
   const [fpsDragOrigin, setFpsDragOrigin] = useState<{ y: number; fps: number } | null>(null);
   const [tutorialStrokes, setTutorialStrokes] = useState(0);
   const [tutorialPlayedOnce, setTutorialPlayedOnce] = useState(false);
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [showUpdateDot, setShowUpdateDot] = useState(() => {
     if (typeof window === 'undefined') return false;
     try { return localStorage.getItem('lastSeenBuild') !== __BUILD_ID__; } catch { return false; }
@@ -598,8 +599,22 @@ function App() {
       '--canvas-aspect': `${width} / ${height}`,
       '--canvas-aspect-num': String(width / height),
     } as React.CSSProperties;
+    const handleStartTap = () => {
+      const ctx = initAudio();
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      setAudioUnlocked(true);
+    };
     return (
       <div className={`app-container ${darkMode ? 'dark-mode' : ''} mobile-layout`}>
+        {!audioUnlocked && (
+          <div className="mobile-start-overlay" onClick={handleStartTap}>
+            <div className="mobile-start-text">
+              <div className="mobile-start-title">8-BIT ANIMATE</div>
+              <div className="mobile-start-sub">by maldo</div>
+              <div className="mobile-start-hint">Tocá para empezar</div>
+            </div>
+          </div>
+        )}
         <div className="mobile-top-bar">
           <button onClick={handleUndo} disabled={!canUndo} className="mobile-icon-btn" title="Deshacer">↶</button>
           <button onClick={handleRedo} disabled={!canRedo} className="mobile-icon-btn" title="Rehacer">↷</button>
