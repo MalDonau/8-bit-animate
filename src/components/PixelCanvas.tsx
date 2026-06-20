@@ -53,6 +53,30 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
   const rafRef = useRef<number | null>(null);
   const drawCanvasRef = useRef<() => void>(() => {});
 
+  const [magnifier, setMagnifier] = useState<{ screenX: number; screenY: number; canvasX: number; canvasY: number } | null>(null);
+  const magnifierTimerRef = useRef<number | null>(null);
+  const pressStartRef = useRef<{ x: number; y: number } | null>(null);
+  const magnifierCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  const computeMagPos = useCallback((screenX: number, screenY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      screenX,
+      screenY,
+      canvasX: ((screenX - rect.left) / rect.width) * width,
+      canvasY: ((screenY - rect.top) / rect.height) * height,
+    };
+  }, [width, height]);
+
+  const cancelMagnifierTimer = () => {
+    if (magnifierTimerRef.current !== null) {
+      window.clearTimeout(magnifierTimerRef.current);
+      magnifierTimerRef.current = null;
+    }
+  };
+
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -227,6 +251,13 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       setActiveButton(e.button);
       const toolToUse = (e.altKey && e.button === 0) ? 'eyedropper' : (e.button === 2 ? 'eraser' : tool);
       handleAction(index, toolToUse);
+
+      pressStartRef.current = { x: e.clientX, y: e.clientY };
+      cancelMagnifierTimer();
+      magnifierTimerRef.current = window.setTimeout(() => {
+        const pos = computeMagPos(e.clientX, e.clientY);
+        if (pos) setMagnifier(pos);
+      }, 1000);
     }
   };
 
@@ -245,6 +276,16 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       const toolToUse = (e.altKey && activeButton === 0) ? 'eyedropper' : (activeButton === 2 ? 'eraser' : tool);
       if (toolToUse === 'brush' || toolToUse === 'eraser') handleAction(index, toolToUse);
     }
+
+    if (magnifierTimerRef.current !== null && pressStartRef.current) {
+      const dx = e.clientX - pressStartRef.current.x;
+      const dy = e.clientY - pressStartRef.current.y;
+      if (dx * dx + dy * dy > 144) cancelMagnifierTimer();
+    }
+    if (magnifier) {
+      const next = computeMagPos(e.clientX, e.clientY);
+      if (next) setMagnifier(next);
+    }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -258,6 +299,9 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     }
     setIsDrawing(false);
     setActiveButton(null);
+    cancelMagnifierTimer();
+    setMagnifier(null);
+    pressStartRef.current = null;
     if (!isEditingBg && isRecording) onHistoryPush(pixels);
   };
 
@@ -270,8 +314,51 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     }
   }, [currentFrameIndex, isPlaying, isDrawing, lastPixelIndex, activeButton, tool, handleAction]);
 
+  useEffect(() => {
+    if (!magnifier) return;
+    const src = canvasRef.current;
+    const mag = magnifierCanvasRef.current;
+    if (!src || !mag) return;
+    const ctx = mag.getContext('2d');
+    if (!ctx) return;
+    const SIZE = mag.width;
+    const SRC_PX = 7;
+    const halfSrc = SRC_PX / 2;
+    let sx = magnifier.canvasX - halfSrc;
+    let sy = magnifier.canvasY - halfSrc;
+    if (sx < 0) sx = 0;
+    if (sy < 0) sy = 0;
+    if (sx + SRC_PX > width) sx = width - SRC_PX;
+    if (sy + SRC_PX > height) sy = height - SRC_PX;
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = canvasBgColor;
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.drawImage(src, sx, sy, SRC_PX, SRC_PX, 0, 0, SIZE, SIZE);
+    const offX = Math.floor(magnifier.canvasX - sx);
+    const offY = Math.floor(magnifier.canvasY - sy);
+    const pxSize = SIZE / SRC_PX;
+    ctx.strokeStyle = 'rgba(255, 50, 50, 0.9)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(offX * pxSize, offY * pxSize, pxSize, pxSize);
+  }, [magnifier, pixels, canvasBgColor, width, height]);
+
+  const MAG_SIZE = 140;
+  const MAG_OFFSET = 60;
+  let magStyle: React.CSSProperties | null = null;
+  if (magnifier) {
+    const showAbove = magnifier.screenY > MAG_SIZE + MAG_OFFSET + 16;
+    const top = showAbove
+      ? magnifier.screenY - MAG_SIZE - MAG_OFFSET
+      : magnifier.screenY + MAG_OFFSET;
+    const left = Math.max(
+      8,
+      Math.min(window.innerWidth - MAG_SIZE - 8, magnifier.screenX - MAG_SIZE / 2)
+    );
+    magStyle = { position: 'fixed', top, left, width: MAG_SIZE, height: MAG_SIZE, zIndex: 1000 };
+  }
+
   return (
-    <div 
+    <div
       className="canvas-container"
       style={{
         width: width * zoom, height: height * zoom, flexShrink: 0, position: 'relative',
@@ -302,6 +389,16 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       />
       {showGrid && (
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', zIndex: 2, backgroundImage: `linear-gradient(to right, rgba(0,0,0,0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.1) 1px, transparent 1px)`, backgroundSize: `${100 / width}% ${100 / height}%` }} />
+      )}
+      {magnifier && magStyle && (
+        <div className="canvas-magnifier" style={magStyle}>
+          <canvas
+            ref={magnifierCanvasRef}
+            width={MAG_SIZE}
+            height={MAG_SIZE}
+            style={{ display: 'block', width: '100%', height: '100%', imageRendering: 'pixelated' }}
+          />
+        </div>
       )}
     </div>
   );

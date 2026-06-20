@@ -305,6 +305,24 @@ button:disabled {
   to { transform: rotate(360deg); }
 }
 
+.canvas-magnifier {
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid var(--accent-color);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  background: var(--bg-color);
+  animation: magnifier-in 0.18s ease-out;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@keyframes magnifier-in {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
 .dark-mode .palette-color {
   border-color: rgba(255,255,255,0.05);
 }
