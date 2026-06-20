@@ -58,6 +58,20 @@ const getByWord = () => {
   return 'by';
 };
 
+const getStartHint = () => {
+  if (typeof navigator === 'undefined') return 'Tap to start';
+  const lang = (navigator.language || 'en').toLowerCase();
+  if (lang === 'es-ar' || lang === 'es-uy') return 'Tocá para empezar';
+  if (lang.startsWith('es')) return 'Toca para empezar';
+  if (lang.startsWith('pt')) return 'Toque para começar';
+  if (lang.startsWith('fr')) return 'Touchez pour commencer';
+  if (lang.startsWith('it')) return 'Tocca per iniziare';
+  if (lang.startsWith('de')) return 'Tippen zum Starten';
+  if (lang.startsWith('ca')) return 'Toca per començar';
+  if (lang.startsWith('nl')) return 'Tik om te beginnen';
+  return 'Tap to start';
+};
+
 const useIsMobile = (breakpoint = 768) => {
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia(`(max-width: ${breakpoint}px)`).matches
@@ -623,7 +637,7 @@ function App() {
             <div className="mobile-start-text">
               <div className="mobile-start-title">8-BIT ANIMATE</div>
               <div className="mobile-start-sub">{getByWord()} Maldo</div>
-              <div className="mobile-start-hint">Tocá para empezar</div>
+              <div className="mobile-start-hint">{getStartHint()}</div>
             </div>
           </div>
         )}
