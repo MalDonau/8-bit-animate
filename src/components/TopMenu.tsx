@@ -20,6 +20,8 @@ interface TopMenuProps {
   setAudioEnabled: (enabled: boolean) => void;
   isFullscreen: boolean;
   setIsFullscreen: (full: boolean) => void;
+  exportWithGrid: boolean;
+  setExportWithGrid: (v: boolean) => void;
 }
 
 const TopMenu: React.FC<TopMenuProps> = ({
@@ -28,7 +30,8 @@ const TopMenu: React.FC<TopMenuProps> = ({
   showGrid, setShowGrid, zoom, setZoom,
   darkMode, setDarkMode,
   audioEnabled, setAudioEnabled,
-  isFullscreen, setIsFullscreen
+  isFullscreen, setIsFullscreen,
+  exportWithGrid, setExportWithGrid
 }) => {
   const [showExportMenu, setShowExportMenu] = React.useState(false);
 
@@ -46,7 +49,15 @@ const TopMenu: React.FC<TopMenuProps> = ({
           </button>
           {showExportMenu && (
             <div className="dropdown-content">
-              <button onClick={() => { onExport('mp4'); setShowExportMenu(false); }}>Video MP4 (6s Loop)</button>
+              <label className="dropdown-option" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={exportWithGrid}
+                  onChange={(e) => setExportWithGrid(e.target.checked)}
+                />
+                Incluir grilla
+              </label>
+              <button onClick={() => { onExport('mp4'); setShowExportMenu(false); }}>Video MP4</button>
               <button onClick={() => { onExport('gif'); setShowExportMenu(false); }}>GIF Animado</button>
               <button onClick={() => { onExport('png-seq'); setShowExportMenu(false); }}>Secuencia PNG (ZIP)</button>
               <button onClick={() => { onExport('jpg-seq'); setShowExportMenu(false); }}>Secuencia JPG (ZIP)</button>

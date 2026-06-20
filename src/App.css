@@ -692,6 +692,21 @@ input[type="file"]::file-selector-button {
   padding: 10px 15px;
 }
 
+.dropdown-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 15px;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  user-select: none;
+}
+
+.dropdown-option input[type="checkbox"] {
+  margin: 0;
+}
+
 .dropdown-content button:hover {
   background: var(--accent-color);
   color: var(--bg-color);

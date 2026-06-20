@@ -135,6 +135,7 @@ function App() {
   const [tutorialStrokes, setTutorialStrokes] = useState(0);
   const [tutorialPlayedOnce, setTutorialPlayedOnce] = useState(false);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
+  const [exportWithGrid, setExportWithGrid] = useState(false);
   const [showUpdateDot, setShowUpdateDot] = useState(() => {
     if (typeof window === 'undefined') return false;
     try { return localStorage.getItem('lastSeenBuild') !== __BUILD_ID__; } catch { return false; }
@@ -488,6 +489,24 @@ function App() {
 
   const handleExport = async (format: 'png' | 'gif' | 'mp4' | 'png-seq' | 'jpg-seq') => {
     const zip = new JSZip();
+    const drawGrid = (ctx: CanvasRenderingContext2D, exportW: number, exportH: number) => {
+      const pxW = exportW / width;
+      const pxH = exportH / height;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.22)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = 0; x <= width; x++) {
+        const px = Math.round(x * pxW) + 0.5;
+        ctx.moveTo(px, 0);
+        ctx.lineTo(px, exportH);
+      }
+      for (let y = 0; y <= height; y++) {
+        const py = Math.round(y * pxH) + 0.5;
+        ctx.moveTo(0, py);
+        ctx.lineTo(exportW, py);
+      }
+      ctx.stroke();
+    };
     const getFrameCanvas = (framePixels: string[], exportWidth = width, exportHeight = height) => {
       const canvas = document.createElement('canvas'); canvas.width = exportWidth; canvas.height = exportHeight;
       const ctx = canvas.getContext('2d'); if (!ctx) return null;
@@ -496,16 +515,17 @@ function App() {
       framePixels.forEach((color, index) => {
         const x = index % width;
         const y = Math.floor(index / width);
-        if (color === 'transparent') { 
-          if (format === 'jpg-seq' || format === 'mp4') { 
-            ctx.fillStyle = '#ffffff'; 
-            ctx.fillRect(x * pixelSizeX, y * pixelSizeY, pixelSizeX, pixelSizeY); 
-          } 
-          return; 
+        if (color === 'transparent') {
+          if (format === 'jpg-seq' || format === 'mp4') {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(x * pixelSizeX, y * pixelSizeY, pixelSizeX, pixelSizeY);
+          }
+          return;
         }
-        ctx.fillStyle = color; 
+        ctx.fillStyle = color;
         ctx.fillRect(x * pixelSizeX, y * pixelSizeY, pixelSizeX, pixelSizeY);
       });
+      if (exportWithGrid) drawGrid(ctx, exportWidth, exportHeight);
       return canvas;
     };
     if (format === 'png') {
@@ -590,6 +610,7 @@ function App() {
           recordCtx.imageSmoothingEnabled = false;
           recordCtx.drawImage(sourceCanvas, 0, 0, exportWidth, exportHeight);
         }
+        if (exportWithGrid) drawGrid(recordCtx, exportWidth, exportHeight);
 
         requestAnimationFrame(renderLoop);
       };
@@ -852,6 +873,10 @@ function App() {
               </div>
               <div className="mobile-drawer-section">
                 <h3>Exportar</h3>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <input type="checkbox" checked={exportWithGrid} onChange={(e) => setExportWithGrid(e.target.checked)} />
+                  Incluir grilla
+                </label>
                 <div className="mobile-drawer-buttons">
                   <button onClick={() => { handleExport('mp4'); setShowInfoDrawer(false); }}>Video MP4</button>
                   <button onClick={() => { handleExport('gif'); setShowInfoDrawer(false); }}>GIF</button>
@@ -925,7 +950,7 @@ function App() {
             />
             {showUpdateDot && <span className="desktop-update-dot" title="Versión actualizada" />}
           </div>
-          <TopMenu onUndo={handleUndo} onRedo={handleRedo} canUndo={canUndo} canRedo={canRedo} onSave={handleSave} onOpen={handleOpen} onExport={handleExport} onNew={handleNew} onImport={() => setIsImporting(true)} showGrid={showGrid} setShowGrid={setShowGrid} zoom={zoom} setZoom={setZoom} darkMode={darkMode} setDarkMode={setDarkMode} audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled} isFullscreen={isFullscreen} setIsFullscreen={setIsFullscreen} />
+          <TopMenu onUndo={handleUndo} onRedo={handleRedo} canUndo={canUndo} canRedo={canRedo} onSave={handleSave} onOpen={handleOpen} onExport={handleExport} onNew={handleNew} onImport={() => setIsImporting(true)} showGrid={showGrid} setShowGrid={setShowGrid} zoom={zoom} setZoom={setZoom} darkMode={darkMode} setDarkMode={setDarkMode} audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled} isFullscreen={isFullscreen} setIsFullscreen={setIsFullscreen} exportWithGrid={exportWithGrid} setExportWithGrid={setExportWithGrid} />
         </header>
       )}
       <main>
