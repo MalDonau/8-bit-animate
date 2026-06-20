@@ -718,6 +718,22 @@ input[type="file"]::file-selector-button {
   position: relative;
 }
 
+.mobile-layout,
+.mobile-layout * {
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.mobile-layout input[type="text"],
+.mobile-layout input[type="number"],
+.mobile-layout input[type="file"],
+.mobile-layout textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .mobile-top-bar {
   display: flex;
   align-items: center;
