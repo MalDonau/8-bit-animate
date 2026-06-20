@@ -594,7 +594,10 @@ function App() {
   }, [handleUndo, handleRedo, isFullscreen]);
 
   if (isMobile && !isFullscreen) {
-    const canvasStyle = { '--canvas-aspect': `${width} / ${height}` } as React.CSSProperties;
+    const canvasStyle = {
+      '--canvas-aspect': `${width} / ${height}`,
+      '--canvas-aspect-num': String(width / height),
+    } as React.CSSProperties;
     return (
       <div className={`app-container ${darkMode ? 'dark-mode' : ''} mobile-layout`}>
         <div className="mobile-top-bar">

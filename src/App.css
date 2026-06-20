@@ -795,15 +795,16 @@ input[type="file"]::file-selector-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 6px;
+  padding: 4px;
   background-image: radial-gradient(var(--border-color) 1px, transparent 1px);
   background-size: 24px 24px;
+  container-type: size;
+  box-sizing: border-box;
 }
 
 .mobile-canvas-area .canvas-container {
-  width: 100% !important;
+  width: min(100cqw, calc(100cqh * var(--canvas-aspect-num, 1))) !important;
   height: auto !important;
-  max-height: 100%;
   aspect-ratio: var(--canvas-aspect, 1) !important;
 }
 
@@ -842,6 +843,11 @@ input[type="file"]::file-selector-button {
   flex: 1;
   overflow-x: auto;
   min-width: 0;
+  scrollbar-width: none;
+}
+
+.mobile-strip-swatches::-webkit-scrollbar {
+  display: none;
 }
 
 .mobile-strip-swatches .palette-color {
@@ -980,6 +986,11 @@ input[type="file"]::file-selector-button {
   overflow-x: auto;
   min-width: 0;
   align-items: center;
+  scrollbar-width: none;
+}
+
+.mobile-strip-frames::-webkit-scrollbar {
+  display: none;
 }
 
 .mobile-frame-dot {
@@ -1143,4 +1154,36 @@ input[type="file"]::file-selector-button {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
+}
+
+@media (max-width: 380px) {
+  .mobile-icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+  .mobile-top-bar {
+    padding: 4px 6px;
+    gap: 3px;
+  }
+  .mobile-strip-swatches .palette-color {
+    width: 22px;
+    height: 22px;
+  }
+  .mobile-current-color {
+    width: 28px;
+    height: 28px;
+  }
+  .mobile-strip {
+    height: 36px;
+    padding: 3px 5px;
+    gap: 4px;
+  }
+  .mobile-timeline-strip .rec-button,
+  .mobile-timeline-strip .play-button,
+  .mobile-timeline-strip .onion-button,
+  .mobile-expand-btn,
+  .mobile-add-frame-btn {
+    width: 28px;
+    height: 28px;
+  }
 }
