@@ -10,6 +10,7 @@ interface BgTransform {
 
 interface PixelCanvasProps {
   pixels: string[];
+  underlayPixels?: string[];
   setPixels: (pixels: string[]) => void;
   width: number;
   height: number;
@@ -38,7 +39,7 @@ const EPHEMERAL_DURATION = 1000;
 const EPHEMERAL_FADE_START = 700;
 
 const PixelCanvas: React.FC<PixelCanvasProps> = ({
-  pixels, setPixels, width, height, color, setColor, tool, zoom, showGrid,
+  pixels, underlayPixels = [], setPixels, width, height, color, setColor, tool, zoom, showGrid,
   onHistoryPush, currentFrameIndex = 0, frames = [], onionSkin = 0,
   bgImage, bgTransform, setBgTransform, isEditingBg, isPlaying,
   playPixelSound, isRecording = false, canvasBgColor = '#ffffff'
@@ -110,6 +111,13 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     }
 
     ctx.globalAlpha = 1.0;
+    // The inactive layer (melody/percussion) is shown beneath the editable one,
+    // so the canvas always reflects the full drawing — but edits only touch `pixels`.
+    underlayPixels.forEach((pxColor, index) => {
+      if (pxColor === 'transparent') return;
+      ctx.fillStyle = pxColor;
+      ctx.fillRect(index % width, Math.floor(index / width), 1, 1);
+    });
     pixels.forEach((pxColor, index) => {
       if (pxColor === 'transparent') return;
       const x = index % width;
@@ -132,7 +140,7 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       });
       ctx.globalAlpha = 1.0;
     }
-  }, [pixels, width, onionSkin, frames, currentFrameIndex]);
+  }, [pixels, underlayPixels, width, onionSkin, frames, currentFrameIndex]);
 
   useEffect(() => { drawCanvasRef.current = drawCanvas; }, [drawCanvas]);
   useEffect(() => { drawCanvas(); }, [drawCanvas]);

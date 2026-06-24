@@ -1300,3 +1300,96 @@ input[type="file"]::file-selector-button {
     height: 28px;
   }
 }
+
+/* ---- Layer mode toggle (Melodía / Percusión) ---- */
+.layer-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--editor-bg);
+  flex-shrink: 0;
+}
+.layer-toggle button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.layer-toggle button svg {
+  display: block;
+}
+.layer-toggle button + button {
+  border-left: 1px solid var(--border-color);
+}
+.layer-toggle button:hover {
+  color: var(--text-color);
+  background: var(--button-hover);
+}
+.layer-toggle button.active {
+  background: var(--accent-color);
+  color: var(--bg-color);
+  box-shadow: var(--accent-glow);
+}
+
+.mobile-layer-toggle {
+  border-radius: 6px;
+}
+.mobile-layer-toggle button {
+  padding: 4px 8px;
+  font-size: 14px;
+}
+
+/* ---- Slide toggle (info panel) ---- */
+.slide-control {
+  margin: 12px 0;
+}
+.slide-toggle {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--editor-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.slide-toggle:hover {
+  color: var(--text-color);
+  background: var(--button-hover);
+}
+.slide-toggle.active {
+  background: var(--accent-color);
+  color: var(--bg-color);
+  box-shadow: var(--accent-glow);
+}
+
+/* ---- Mode controls at the top of the right panel ---- */
+.panel-mode-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+.panel-mode-controls .layer-toggle {
+  display: flex;
+  width: 100%;
+}
+.panel-mode-controls .layer-toggle button {
+  flex: 1;
+  padding: 8px 12px;
+}

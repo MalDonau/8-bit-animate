@@ -1,12 +1,15 @@
 import React from 'react';
+import type { Frame, LayerKey } from '../App';
 
 interface TimelineProps {
-  frames: string[][];
+  frames: Frame[];
+  activeLayer: LayerKey;
   currentFrameIndex: number;
   setCurrentFrameIndex: (index: number) => void;
   addFrame: () => void;
   removeFrame: () => void;
   duplicateFrame: () => void;
+  clearFrame: () => void;
   isPlaying: boolean;
   setIsPlaying: (playing: boolean) => void;
   fps: number;
@@ -16,7 +19,7 @@ interface TimelineProps {
   onionSkin: number;
   setOnionSkin: (count: number) => void;
   moveFrame: (from: number, to: number) => void;
-  playFrameSound: (framePixels: string[]) => void;
+  playFrameSound: (frame: Frame) => void;
   lastAddedIndex: number | null;
   isRecording: boolean;
   setIsRecording: (rec: boolean) => void;
@@ -26,11 +29,13 @@ interface TimelineProps {
 
 const Timeline: React.FC<TimelineProps> = ({
   frames,
+  activeLayer,
   currentFrameIndex,
   setCurrentFrameIndex,
   addFrame,
   removeFrame,
   duplicateFrame,
+  clearFrame,
   isPlaying,
   setIsPlaying,
   fps,
@@ -189,7 +194,7 @@ const Timeline: React.FC<TimelineProps> = ({
             onDrop={(e) => handleDrop(e, index)}
           >
             <div className="frame-number">{index + 1}</div>
-            <MiniCanvas pixels={frame} width={width} height={height} />
+            <MiniCanvas pixels={frame[activeLayer]} width={width} height={height} />
             {index === currentFrameIndex && <div className="scrub-cursor" />}
           </div>
         ))}
@@ -201,6 +206,9 @@ const Timeline: React.FC<TimelineProps> = ({
       <div className="frame-actions">
         <button onClick={duplicateFrame} title="Duplicar Frame">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+        </button>
+        <button onClick={clearFrame} title="Borrar contenido del Frame">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="8" y1="8" x2="16" y2="16"></line><line x1="16" y1="8" x2="8" y2="16"></line></svg>
         </button>
         <button onClick={removeFrame} title="Eliminar Frame" disabled={frames.length <= 1}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>

@@ -5,6 +5,7 @@ interface ToolbarProps {
   setTool: (tool: 'brush' | 'eraser' | 'fill' | 'eyedropper') => void;
   currentColor: string;
   setColor: (color: string) => void;
+  selectColor: (color: string) => void;
   setCanvasBgColor: (color: string) => void;
 }
 
@@ -18,7 +19,7 @@ interface SwatchProps {
 }
 
 export const Swatch: React.FC<SwatchProps> = ({
-  color, selected, onSelect, onLongPress, longPressMs = 3000, className,
+  color, selected, onSelect, onLongPress, longPressMs = 2000, className,
 }) => {
   const timerRef = useRef<number | null>(null);
   const firedRef = useRef(false);
@@ -73,7 +74,7 @@ export const EXTRA_COLORS = [
   '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffa500', '#8b4513', '#4b0082'
 ];
 
-const Toolbar: React.FC<ToolbarProps> = ({ currentTool, setTool, currentColor, setColor, setCanvasBgColor }) => {
+const Toolbar: React.FC<ToolbarProps> = ({ currentTool, setTool, currentColor, setColor, selectColor, setCanvasBgColor }) => {
   return (
     <div className="toolbar">
       <div className="tool-section">
@@ -135,7 +136,7 @@ const Toolbar: React.FC<ToolbarProps> = ({ currentTool, setTool, currentColor, s
               key={color}
               color={color}
               selected={currentColor.toLowerCase() === color.toLowerCase()}
-              onSelect={() => setColor(color)}
+              onSelect={() => selectColor(color)}
               onLongPress={() => setCanvasBgColor(color)}
             />
           ))}
@@ -148,7 +149,7 @@ const Toolbar: React.FC<ToolbarProps> = ({ currentTool, setTool, currentColor, s
               key={color}
               color={color}
               selected={currentColor.toLowerCase() === color.toLowerCase()}
-              onSelect={() => setColor(color)}
+              onSelect={() => selectColor(color)}
               onLongPress={() => setCanvasBgColor(color)}
             />
           ))}

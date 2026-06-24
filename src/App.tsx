@@ -15,6 +15,38 @@ const DEFAULT_HEIGHT = 32;
 const MAX_FRAMES = 48;
 const FULL_PALETTE = [...DB32_PALETTE, ...EXTRA_COLORS];
 
+export type LayerKey = 'melody' | 'percussion';
+export interface Frame {
+  melody: string[];
+  percussion: string[];
+  melodySlide: boolean[]; // per-cell "slide" flag for the melody layer (gliding note)
+}
+
+// Monochrome icons for the layer toggle, in the same filled style as the toolbar tools.
+const MelodyIcon = ({ size = 18 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 512 512" fill="currentColor" aria-hidden="true">
+    <path d="M470.38 1.51L150.41 96A32 32 0 0 0 128 126.51v261.41A139 139 0 0 0 96 384c-53 0-96 28.66-96 64s43 64 96 64 96-28.66 96-64V214.32l256-75v184.61a138.4 138.4 0 0 0-32-3.93c-53 0-96 28.66-96 64s43 64 96 64 96-28.65 96-64V32a32 32 0 0 0-41.62-30.49z" />
+  </svg>
+);
+const PercussionIcon = ({ size = 18 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 512 512" fill="currentColor" aria-hidden="true">
+    <ellipse cx="256" cy="250" rx="160" ry="58" />
+    <path d="M96 250 v116 a160 58 0 0 0 320 0 V250 Z" />
+    <line x1="296" y1="205" x2="128" y2="78" stroke="currentColor" strokeWidth="30" strokeLinecap="round" />
+    <line x1="216" y1="205" x2="384" y2="78" stroke="currentColor" strokeWidth="30" strokeLinecap="round" />
+  </svg>
+);
+
+const makeLayer = (w: number, h: number) => Array(w * h).fill('transparent');
+const makeMask = (w: number, h: number) => Array(w * h).fill(false);
+const makeFrame = (w: number, h: number): Frame => ({ melody: makeLayer(w, h), percussion: makeLayer(w, h), melodySlide: makeMask(w, h) });
+// Merge both layers into a single pixel array for export/preview (percussion drawn over melody).
+const compositeFrame = (frame: Frame): string[] => {
+  const out = [...frame.melody];
+  frame.percussion.forEach((c, i) => { if (c !== 'transparent') out[i] = c; });
+  return out;
+};
+
 const SCALES = {
   MAJOR_PENTA: [0, 2, 4, 7, 9],
   MINOR_PENTA: [0, 3, 5, 7, 10],
@@ -106,13 +138,18 @@ function App() {
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
   const [projectName, setProjectName] = useState('animacion');
-  const [frames, setFrames] = useState<string[][]>([
-    Array(DEFAULT_WIDTH * DEFAULT_HEIGHT).fill('transparent')
+  const [frames, setFrames] = useState<Frame[]>([
+    makeFrame(DEFAULT_WIDTH, DEFAULT_HEIGHT)
   ]);
+  const [activeLayer, setActiveLayer] = useState<LayerKey>('melody');
+  const [slideMode, setSlideMode] = useState(false); // paint melody cells as gliding "slide" notes
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
 
   const framesRef = useRef(frames);
   useEffect(() => { framesRef.current = frames; }, [frames]);
+  const noiseBufferRef = useRef<AudioBuffer | null>(null);
+  // Persistent gliding voice for blue notes (lives across frames during playback).
+  const glideRef = useRef<{ osc: OscillatorNode; gain: GainNode; pan: StereoPannerNode; lp: BiquadFilterNode } | null>(null);
 
   const { pushState, undo, redo, canUndo, canRedo, reset } = useHistory(frames);
   const [currentColor, setCurrentColor] = useState('#000000');
@@ -254,7 +291,15 @@ function App() {
     const max = Math.max(r, g, b), min = Math.min(r, g, b);
     const l = (max + min) / 2;
     const s = max === min ? 0 : (l > 0.5 ? (max - min) / (2 - max - min) : (max - min) / (max + min));
-    return { s, l };
+    let h = 0;
+    if (max !== min) {
+      const d = max - min;
+      if (max === r) h = ((g - b) / d) % 6;
+      else if (max === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h *= 60; if (h < 0) h += 360;
+    }
+    return { s, l, h };
   };
 
   const getWaveformByColor = (hex: string): OscillatorType => {
@@ -285,7 +330,7 @@ function App() {
     const ctx = initAudio();
     const schedule = () => {
       const info = getHexInfo(color);
-      const framePixels = framesRef.current[currentFrameIndex];
+      const framePixels = framesRef.current[currentFrameIndex].melody;
       const currentScale = getResultantScale(framePixels);
       const noteFreq = currentScale[31 - row] || 440;
       const t0 = ctx.currentTime + 0.02;
@@ -322,11 +367,11 @@ function App() {
     }
   }, [audioEnabled, initAudio, width, height, onionSkin, currentFrameIndex, getResultantScale]);
 
-  const playFrameSound = useCallback((framePixels: string[]) => {
+  const playFrameMelody = useCallback((framePixels: string[], slideMask?: boolean[]) => {
     const pixelsByRow: Map<number, {color: string, x: number}[]> = new Map();
     const colorCounts: Map<string, number> = new Map();
     framePixels.forEach((color, i) => {
-      if (color !== 'transparent' && color.toLowerCase() !== '#ffffff') {
+      if (color !== 'transparent' && color.toLowerCase() !== '#ffffff' && !(slideMask && slideMask[i])) {
         const row = Math.floor(i / width);
         if (!pixelsByRow.has(row)) pixelsByRow.set(row, []);
         pixelsByRow.get(row)!.push({color, x: i % width});
@@ -351,7 +396,8 @@ function App() {
         osc.type = getWaveformByColor(data.color);
         osc.frequency.setValueAtTime(noteFreq, t0);
         pan.pan.setValueAtTime((data.x / width) * 2 - 1, t0);
-        const volume = 0.03;
+        // Denser color (more cells) = louder note.
+        const volume = 0.06 * Math.min(1, 0.35 + density * 0.05);
         const info = getHexInfo(data.color);
         const attackTime = Math.min(0.08, 0.2 * (1 - info.s) + 0.005);
 
@@ -379,27 +425,338 @@ function App() {
     }
   }, [initAudio, width, height, onionSkin, getResultantScale]);
 
+  // ----- GLIDE/SLIDE VOICE (melody) -----
+  // Cells painted with "slide" don't re-trigger every frame; one sustained
+  // oscillator bends its pitch toward each frame's slide note (portamento).
+  const releaseGlide = useCallback(() => {
+    const v = glideRef.current;
+    if (!v) return;
+    glideRef.current = null;
+    const ctx = audioCtx.current;
+    const now = ctx ? ctx.currentTime : 0;
+    try {
+      v.gain.gain.cancelScheduledValues(now);
+      v.gain.gain.setValueAtTime(Math.max(0.0001, v.gain.gain.value), now);
+      v.gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+      v.osc.stop(now + 0.18);
+    } catch {}
+  }, []);
+
+  const updateGlideVoice = useCallback((framePixels: string[], slideMask: boolean[]) => {
+    if (!audioEnabled) { releaseGlide(); return; }
+    let sumRow = 0, sumX = 0, n = 0, repColor = '';
+    framePixels.forEach((c, i) => {
+      if (!slideMask[i] || c === 'transparent' || c.toLowerCase() === '#ffffff') return;
+      sumRow += Math.floor(i / width); sumX += i % width; n++;
+      if (!repColor) repColor = c;
+    });
+    const ctx = initAudio();
+    const now = ctx.currentTime;
+    // Denser slide (more cells) = louder sustained note, like the plucks.
+    const volume = 0.05 * Math.min(1, 0.4 + n * 0.05);
+    const glide = Math.max(0.02, (1 / fps) * 0.55);
+    const v = glideRef.current;
+
+    // Rest (no slide this frame): fade to silence but KEEP the voice alive, so the
+    // next slide note just swells back in instead of re-attacking percussively.
+    if (n === 0) {
+      if (v) v.gain.gain.setTargetAtTime(0.0001, now, 0.05);
+      return;
+    }
+
+    const scale = getResultantScale(framePixels);
+    const avgRow = Math.round(sumRow / n);
+    const targetFreq = Math.max(20, scale[31 - avgRow] || 220);
+    const panVal = (sumX / n / width) * 2 - 1;
+    // Theremin-like timbre: smooth waveform + a mellow lowpass. Brighter blues open
+    // the filter a little, so they still differ subtly without ever getting harsh.
+    const slideInfo = getHexInfo(repColor);
+    const wave: OscillatorType = slideInfo.s > 0.55 ? 'triangle' : 'sine';
+    const cutoff = 1100 + slideInfo.s * 1500;
+
+    if (!v) {
+      const osc = ctx.createOscillator();
+      const lp = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      const pan = ctx.createStereoPanner();
+      osc.type = wave;
+      osc.frequency.setValueAtTime(targetFreq, now);
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(cutoff, now);
+      lp.Q.value = 0.7;
+      pan.pan.setValueAtTime(panVal, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.setTargetAtTime(volume, now, 0.12); // gentle exponential attack (~0.35s)
+      osc.connect(lp); lp.connect(pan); pan.connect(gain);
+      if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
+      gain.connect(masterGain.current || ctx.destination);
+      osc.start(now);
+      glideRef.current = { osc, gain, pan, lp };
+    } else {
+      if (v.osc.type !== wave) v.osc.type = wave; // keep each color's (mellow) timbre
+      v.lp.frequency.setTargetAtTime(cutoff, now, 0.1);
+      v.osc.frequency.cancelScheduledValues(now);
+      v.osc.frequency.setValueAtTime(Math.max(20, v.osc.frequency.value), now);
+      v.osc.frequency.exponentialRampToValueAtTime(targetFreq, now + glide); // the bend
+      v.pan.pan.cancelScheduledValues(now);
+      v.pan.pan.linearRampToValueAtTime(panVal, now + glide);
+      v.gain.gain.setTargetAtTime(volume, now, 0.12); // smoothly hold level / re-enter from a rest
+    }
+  }, [audioEnabled, width, fps, onionSkin, initAudio, getResultantScale, releaseGlide]);
+
+  // ----- PERCUSSION ENGINE -----
+  // A color maps to a drum voice by saturation (material), lightness (size/pitch)
+  // and hue (variant). Within a voice, hue + lightness also fine-tune the timbre,
+  // so different colors that land on the same family still sound distinct.
+  type Drum =
+    | 'kick' | 'tomLow' | 'tomMid' | 'tomHigh'      // membranes (desaturated, dark->light)
+    | 'rim' | 'wood' | 'clave'                       // wood / clicks
+    | 'snare' | 'clap' | 'conga' | 'cowbell'         // skins & hands (mid saturation)
+    | 'hihat' | 'openhat' | 'ride' | 'crash' | 'shaker' | 'tambourine'; // metals (saturated)
+  const classifyDrum = useCallback((hex: string): Drum => {
+    const { s, l, h } = getHexInfo(hex);
+    if (s < 0.2) {
+      if (l < 0.2) return 'kick';
+      if (l < 0.35) return 'tomLow';
+      if (l < 0.5) return 'tomMid';
+      if (l < 0.68) return 'tomHigh';
+      return 'rim';
+    }
+    if (s < 0.5) {
+      if (l < 0.3) return 'conga';
+      if (h < 60 || h >= 320) return 'snare';   // reds / magentas
+      if (h < 170) return 'clap';               // yellows / greens
+      if (h < 270) return 'wood';               // cyans / blues
+      return 'clave';                           // purples
+    }
+    // saturated -> metals, picked by hue then lightness
+    if (l < 0.38) return 'cowbell';
+    if (h < 55) return 'crash';                 // red / orange
+    if (h < 150) return 'ride';                 // yellow / green
+    if (h < 205) return 'hihat';                // cyan
+    if (h < 280) return 'openhat';              // blue
+    return l > 0.7 ? 'shaker' : 'tambourine';   // magenta / pink
+  }, []);
+
+  const getNoiseBuffer = useCallback((ctx: AudioContext) => {
+    if (noiseBufferRef.current && noiseBufferRef.current.sampleRate === ctx.sampleRate) return noiseBufferRef.current;
+    const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate), ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    noiseBufferRef.current = buf;
+    return buf;
+  }, []);
+
+  const baseVol: Record<Drum, number> = {
+    kick: 0.42, tomLow: 0.32, tomMid: 0.28, tomHigh: 0.26,
+    rim: 0.22, wood: 0.2, clave: 0.2,
+    snare: 0.22, clap: 0.2, conga: 0.24, cowbell: 0.18,
+    hihat: 0.14, openhat: 0.14, ride: 0.13, crash: 0.16, shaker: 0.12, tambourine: 0.15,
+  };
+
+  const playDrumHit = useCallback((ctx: AudioContext, drum: Drum, t0: number, panVal: number, vol: number, light: number, hue: number) => {
+    const out = masterGain.current || ctx.destination;
+    const panner = ctx.createStereoPanner();
+    panner.pan.setValueAtTime(Math.max(-1, Math.min(1, panVal)), t0);
+    panner.connect(out);
+    if (onionSkin > 0 && delayNode.current) panner.connect(delayNode.current);
+    // tuning factors: brighter color -> a bit higher/brighter; hue -> small detune
+    const tune = 0.8 + light * 0.5;
+    const hueShift = 1 + ((hue / 360) - 0.5) * 0.25;
+
+    const tone = (type: OscillatorType, f0: number, f1: number, peak: number, dur: number, at = t0) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(f0, at);
+      if (f1 !== f0) osc.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + dur * 0.9);
+      g.gain.setValueAtTime(peak, at);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+      osc.connect(g); g.connect(panner);
+      osc.start(at); osc.stop(at + dur + 0.02);
+    };
+    const noise = (type: BiquadFilterType, freq: number, q: number, peak: number, dur: number, at = t0) => {
+      const src = ctx.createBufferSource();
+      src.buffer = getNoiseBuffer(ctx);
+      const f = ctx.createBiquadFilter();
+      f.type = type; f.frequency.value = freq; if (q) f.Q.value = q;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(peak, at);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+      src.connect(f); f.connect(g); g.connect(panner);
+      src.start(at); src.stop(at + dur + 0.02);
+    };
+
+    switch (drum) {
+      case 'kick': {
+        // Darker = deeper: pure black drops ~an octave into sub-bass (~55 Hz).
+        const f0 = 55 + light * 320;
+        tone('sine', f0, Math.max(28, f0 * 0.4), vol, 0.9);  // long sub fundamental
+        break;
+      }
+      case 'tomLow': tone('sine', 150 * tune, 80, vol, 0.3); break;
+      case 'tomMid': tone('sine', 210 * tune, 110, vol, 0.26); break;
+      case 'tomHigh': tone('sine', 300 * tune, 160, vol, 0.22); break;
+      case 'rim':
+        tone('square', 420, 420, vol * 0.6, 0.03);
+        noise('bandpass', 2600, 3, vol, 0.04);
+        break;
+      case 'wood': tone('square', 900 * tune, 900 * tune, vol, 0.06); break;
+      case 'clave':
+        tone('triangle', 2400 * hueShift, 2400 * hueShift, vol, 0.035);
+        tone('sine', 2400 * hueShift, 2400 * hueShift, vol * 0.6, 0.05);
+        break;
+      case 'snare':
+        tone('triangle', 180 * tune, 180 * tune, vol * 0.5, 0.12);
+        noise('bandpass', 1800 * hueShift, 0.8, vol, 0.2);
+        break;
+      case 'clap':
+        [0, 0.012, 0.026].forEach((off, k) =>
+          noise('bandpass', 1500 * hueShift, 1.0, vol * (k === 2 ? 1 : 0.7), k === 2 ? 0.18 : 0.05, t0 + off));
+        break;
+      case 'conga': tone('sine', 260 * tune, 230 * tune, vol, 0.18); break;
+      case 'cowbell':
+        tone('square', 540 * hueShift, 540 * hueShift, vol * 0.7, 0.3);
+        tone('square', 800 * hueShift, 800 * hueShift, vol * 0.7, 0.3);
+        break;
+      case 'hihat': noise('highpass', 8000, 0, vol, 0.045); break;
+      case 'openhat': noise('highpass', 8000, 0, vol, 0.28 + light * 0.2); break;
+      case 'ride':
+        noise('highpass', 6000, 0, vol * 0.8, 0.4 + light * 0.3);
+        tone('square', 3200 * hueShift, 3200 * hueShift, vol * 0.25, 0.3);
+        break;
+      case 'crash': noise('highpass', 5000, 0, vol, 0.6 + light * 0.6); break;
+      case 'shaker': noise('bandpass', 6500, 1, vol, 0.07); break;
+      case 'tambourine':
+        noise('bandpass', 7000, 2, vol, 0.18);
+        tone('square', 9000, 9000, vol * 0.2, 0.05);
+        break;
+    }
+  }, [onionSkin, getNoiseBuffer]);
+
+  const playFramePercussion = useCallback((framePixels: string[]) => {
+    if (!audioEnabled) return;
+    const groups = new Map<Drum, { count: number; sumX: number; sumL: number; sumH: number }>();
+    framePixels.forEach((c, i) => {
+      if (c === 'transparent' || c.toLowerCase() === '#ffffff') return;
+      const drum = classifyDrum(c);
+      const info = getHexInfo(c);
+      const g = groups.get(drum) || { count: 0, sumX: 0, sumL: 0, sumH: 0 };
+      g.count++; g.sumX += i % width; g.sumL += info.l; g.sumH += info.h;
+      groups.set(drum, g);
+    });
+    if (groups.size === 0) return;
+    const ctx = initAudio();
+    const fire = () => {
+      const t0 = ctx.currentTime + 0.02;
+      groups.forEach((g, drum) => {
+        const pan = (g.sumX / g.count / width) * 2 - 1;
+        const density = Math.min(1, 0.4 + g.count * 0.05);
+        playDrumHit(ctx, drum, t0, pan, baseVol[drum] * density, g.sumL / g.count, g.sumH / g.count);
+      });
+    };
+    if (ctx.state === 'running') { fire(); }
+    else { let fired = false; const safe = () => { if (!fired) { fired = true; fire(); } }; ctx.resume().then(safe, safe); setTimeout(safe, 200); }
+  }, [audioEnabled, width, initAudio, classifyDrum, playDrumHit]);
+
+  // Live single-hit feedback while drawing/previewing in percussion mode (same signature as playSingleNote).
+  const playPercussionSingle = useCallback((_row: number, color: string, xPos: number, volumeFactor = 1, colorDensity = 1) => {
+    if (!audioEnabled || !color || color === 'transparent' || color.toLowerCase() === '#ffffff') return;
+    const ctx = initAudio();
+    const fire = () => {
+      const drum = classifyDrum(color);
+      const info = getHexInfo(color);
+      const t0 = ctx.currentTime + 0.02;
+      const density = Math.min(1, 0.4 + colorDensity * 0.05);
+      playDrumHit(ctx, drum, t0, (xPos / width) * 2 - 1, baseVol[drum] * density * volumeFactor, info.l, info.h);
+    };
+    if (ctx.state === 'running') { fire(); }
+    else { let fired = false; const safe = () => { if (!fired) { fired = true; fire(); } }; ctx.resume().then(safe, safe); setTimeout(safe, 200); }
+  }, [audioEnabled, width, initAudio, classifyDrum, playDrumHit]);
+
+  // Composite for scrub/preview: melody (slide cells play as normal notes) + percussion.
+  const playFrameSound = useCallback((frame: Frame) => {
+    playFrameMelody(frame.melody);
+    playFramePercussion(frame.percussion);
+  }, [playFrameMelody, playFramePercussion]);
+
+  // Composite for continuous playback: slide cells feed the sustained glide voice
+  // (excluded from the per-frame plucks) so they bend between frames.
+  const playFramePlayback = useCallback((frame: Frame) => {
+    updateGlideVoice(frame.melody, frame.melodySlide);
+    playFrameMelody(frame.melody, frame.melodySlide);
+    playFramePercussion(frame.percussion);
+  }, [updateGlideVoice, playFrameMelody, playFramePercussion]);
+
+  // Audition a color in the active mode (a melody note or a drum hit).
+  const previewColor = useCallback((c: string) => {
+    if (!c || c === 'transparent' || c.toLowerCase() === '#ffffff') return;
+    if (activeLayer === 'melody') playSingleNote(Math.floor(height / 2), c, Math.floor(width / 2), 1, 30);
+    else playPercussionSingle(0, c, Math.floor(width / 2), 1, 8);
+  }, [activeLayer, height, width, playSingleNote, playPercussionSingle]);
+
+  // Selecting a color also auditions it.
+  const selectColor = useCallback((c: string) => {
+    setCurrentColor(c);
+    previewColor(c);
+  }, [previewColor]);
+
   useEffect(() => {
     let interval: number | undefined;
     if (isPlaying && framesRef.current.length > 1) {
       interval = window.setInterval(() => {
         setCurrentFrameIndex((prev) => {
           const next = (prev + 1) % framesRef.current.length;
-          playFrameSound(framesRef.current[next]);
+          playFramePlayback(framesRef.current[next]);
           return next;
         });
       }, 1000 / fps);
+    } else {
+      releaseGlide();
     }
     return () => window.clearInterval(interval);
-  }, [isPlaying, fps, playFrameSound]);
+  }, [isPlaying, fps, playFramePlayback, releaseGlide]);
 
-  const pixels = frames[currentFrameIndex];
-  const updatePixels = (newPixels: string[]) => { const newFrames = [...frames]; newFrames[currentFrameIndex] = newPixels; setFrames(newFrames); };
-  const handleImport = (importedPixels: string[]) => { const newFrames = [...frames]; newFrames[currentFrameIndex] = importedPixels; setFrames(newFrames); pushState(newFrames); setIsImporting(false); };
-  const handleHistoryPush = (pixelsToPush: string[]) => { const newFrames = [...frames]; newFrames[currentFrameIndex] = pixelsToPush; pushState(newFrames); };
+  const otherLayer: LayerKey = activeLayer === 'melody' ? 'percussion' : 'melody';
+  const currentFrame = frames[currentFrameIndex];
+  const pixels = currentFrame[activeLayer];
+  const underlayPixels = currentFrame[otherLayer];
+  const setActiveLayerPixels = (newFrames: Frame[], idx: number, layerPixels: string[]) => {
+    newFrames[idx] = { ...newFrames[idx], [activeLayer]: layerPixels };
+  };
+  // When painting melody, mark newly-painted cells with the current slide state
+  // (and clear erased cells), by diffing the old vs new melody arrays.
+  const writeMelodyWithSlide = (newFrames: Frame[], idx: number, newMelody: string[]) => {
+    const cur = newFrames[idx];
+    const mask = (cur.melodySlide || makeMask(width, height)).slice();
+    for (let i = 0; i < newMelody.length; i++) {
+      if (newMelody[i] !== cur.melody[i]) mask[i] = newMelody[i] === 'transparent' ? false : slideMode;
+    }
+    newFrames[idx] = { ...cur, melody: newMelody, melodySlide: mask };
+  };
+  const updatePixels = (newPixels: string[]) => {
+    const newFrames = [...frames];
+    if (activeLayer === 'melody') writeMelodyWithSlide(newFrames, currentFrameIndex, newPixels);
+    else setActiveLayerPixels(newFrames, currentFrameIndex, newPixels);
+    setFrames(newFrames);
+  };
+  const handleImport = (importedPixels: string[]) => {
+    const newFrames = [...frames];
+    if (activeLayer === 'melody') newFrames[currentFrameIndex] = { ...newFrames[currentFrameIndex], melody: importedPixels, melodySlide: makeMask(width, height) };
+    else setActiveLayerPixels(newFrames, currentFrameIndex, importedPixels);
+    setFrames(newFrames); pushState(newFrames); setIsImporting(false);
+  };
+  const handleHistoryPush = (pixelsToPush: string[]) => {
+    const newFrames = [...frames];
+    if (activeLayer === 'melody') writeMelodyWithSlide(newFrames, currentFrameIndex, pixelsToPush);
+    else setActiveLayerPixels(newFrames, currentFrameIndex, pixelsToPush);
+    pushState(newFrames);
+  };
+  // Active-layer view of every frame — used for onion skin (canvas) and timeline thumbnails.
+  const activeLayerFrames = frames.map(f => f[activeLayer]);
   const handleUndo = () => { const prevState = undo(); if (prevState) { setFrames(prevState); if (currentFrameIndex >= prevState.length) setCurrentFrameIndex(prevState.length - 1); } };
   const handleRedo = () => { const nextState = redo(); if (nextState) { setFrames(nextState); if (currentFrameIndex >= nextState.length) setCurrentFrameIndex(nextState.length - 1); } };
-  const handleNew = () => { if (confirm('¿Estás seguro?')) { const emptyFrames = [Array(width * height).fill('transparent')]; setFrames(emptyFrames); setProjectName('animate'); setCurrentFrameIndex(0); reset(emptyFrames); } };
+  const handleNew = () => { if (confirm('¿Estás seguro?')) { const emptyFrames = [makeFrame(width, height)]; setFrames(emptyFrames); setProjectName('animate'); setCurrentFrameIndex(0); reset(emptyFrames); } };
   
   const handleSave = () => {
     const data = JSON.stringify({
@@ -434,11 +791,17 @@ function App() {
           } else {
             setProjectName(file.name.replace('.json', ''));
           }
-          setWidth(content.width);
-          setHeight(content.height);
+          const w = content.width, h = content.height;
+          setWidth(w);
+          setHeight(h);
           if (content.frames) {
-            setFrames(content.frames);
-            reset(content.frames);
+            // Migrate legacy frames: single-layer (string[][]) and pre-slide {melody,percussion}.
+            const migrated: Frame[] = content.frames.map((f: any) => {
+              if (Array.isArray(f)) return { melody: f as string[], percussion: makeLayer(w, h), melodySlide: makeMask(w, h) };
+              return { melody: f.melody, percussion: f.percussion, melodySlide: f.melodySlide || makeMask(w, h) };
+            });
+            setFrames(migrated);
+            reset(migrated);
           }
           if (content.bgImage) setBgImage(content.bgImage);
           if (content.bgTransform) setBgTransform(content.bgTransform);
@@ -454,10 +817,10 @@ function App() {
 
   const addFrame = () => { 
     if (frames.length >= MAX_FRAMES) return; 
-    const newFrames = [...frames]; 
-    const emptyFrame = Array(width * height).fill('transparent'); 
+    const newFrames = [...frames];
+    const emptyFrame = makeFrame(width, height);
     const nextIdx = currentFrameIndex + 1;
-    newFrames.splice(nextIdx, 0, emptyFrame); 
+    newFrames.splice(nextIdx, 0, emptyFrame);
     setFrames(newFrames); 
     setCurrentFrameIndex(nextIdx); 
     setLastAddedIndex(nextIdx);
@@ -466,10 +829,11 @@ function App() {
   };
   const duplicateFrame = () => { 
     if (frames.length >= MAX_FRAMES) return; 
-    const newFrames = [...frames]; 
-    const duplicatedFrame = [...frames[currentFrameIndex]]; 
+    const newFrames = [...frames];
+    const src = frames[currentFrameIndex];
+    const duplicatedFrame: Frame = { melody: [...src.melody], percussion: [...src.percussion], melodySlide: [...src.melodySlide] };
     const nextIdx = currentFrameIndex + 1;
-    newFrames.splice(nextIdx, 0, duplicatedFrame); 
+    newFrames.splice(nextIdx, 0, duplicatedFrame);
     setFrames(newFrames); 
     setCurrentFrameIndex(nextIdx); 
     setLastAddedIndex(nextIdx);
@@ -477,7 +841,34 @@ function App() {
     pushState(newFrames); 
   };
   const removeFrame = () => { if (frames.length <= 1) return; const newFrames = frames.filter((_, i) => i !== currentFrameIndex); setFrames(newFrames); setCurrentFrameIndex(Math.max(0, currentFrameIndex - 1)); pushState(newFrames); };
-  const shiftPixels = (dx: number, dy: number) => { const newPixels = Array(width * height).fill('transparent'); const currentPixels = frames[currentFrameIndex]; for (let y = 0; y < height; y++) { for (let x = 0; x < width; x++) { const nx = x + dx; const ny = y + dy; if (nx >= 0 && nx < width && ny >= 0 && ny < height) { newPixels[ny * width + nx] = currentPixels[y * width + x]; } } } const newFrames = [...frames]; newFrames[currentFrameIndex] = newPixels; setFrames(newFrames); pushState(newFrames); };
+  // Clears ONLY the active layer's content (frame stays in the timeline).
+  const clearFrame = () => {
+    const newFrames = [...frames];
+    const cur = frames[currentFrameIndex];
+    newFrames[currentFrameIndex] = activeLayer === 'melody'
+      ? { ...cur, melody: makeLayer(width, height), melodySlide: makeMask(width, height) }
+      : { ...cur, percussion: makeLayer(width, height) };
+    setFrames(newFrames); pushState(newFrames);
+  };
+  const shiftPixels = (dx: number, dy: number) => {
+    const newPixels = Array(width * height).fill('transparent');
+    const newMask = makeMask(width, height);
+    const cur = frames[currentFrameIndex];
+    const currentPixels = cur[activeLayer];
+    const currentMask = cur.melodySlide;
+    for (let y = 0; y < height; y++) { for (let x = 0; x < width; x++) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+        newPixels[ny * width + nx] = currentPixels[y * width + x];
+        if (activeLayer === 'melody') newMask[ny * width + nx] = currentMask[y * width + x];
+      }
+    } }
+    const newFrames = [...frames];
+    newFrames[currentFrameIndex] = activeLayer === 'melody'
+      ? { ...cur, melody: newPixels, melodySlide: newMask }
+      : { ...cur, percussion: newPixels };
+    setFrames(newFrames); pushState(newFrames);
+  };
 
   const moveFrame = (fromIndex: number, toIndex: number) => {
     const newFrames = [...frames];
@@ -530,13 +921,13 @@ function App() {
       return canvas;
     };
     if (format === 'png') {
-      const canvas = getFrameCanvas(frames[currentFrameIndex]); if (!canvas) return;
+      const canvas = getFrameCanvas(compositeFrame(frames[currentFrameIndex])); if (!canvas) return;
       const link = document.createElement('a'); link.download = `${projectName}_frame_${currentFrameIndex + 1}.png`; link.href = canvas.toDataURL('image/png'); link.click();
     } else if (format === 'png-seq' || format === 'jpg-seq') {
       const extension = format === 'png-seq' ? 'png' : 'jpg';
       const mimeType = format === 'png-seq' ? 'image/png' : 'image/jpeg';
       for (let i = 0; i < frames.length; i++) {
-        const canvas = getFrameCanvas(frames[i]); if (!canvas) continue;
+        const canvas = getFrameCanvas(compositeFrame(frames[i])); if (!canvas) continue;
         const dataUrl = canvas.toDataURL(mimeType).split(',')[1];
         zip.file(`${projectName}_${String(i + 1).padStart(3, '0')}.${extension}`, dataUrl, { base64: true });
       }
@@ -547,7 +938,7 @@ function App() {
         const workerResponse = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
         const workerBlob = await workerResponse.blob(); const workerUrl = URL.createObjectURL(workerBlob);
         const gif = new GIF({ workers: 2, quality: 1, width: width, height: height, workerScript: workerUrl, transparent: 'rgba(0,0,0,0)' });
-        frames.forEach((frame) => { const canvas = getFrameCanvas(frame); if (canvas) gif.addFrame(canvas, { delay: 1000 / fps, copy: true }); });
+        frames.forEach((frame) => { const canvas = getFrameCanvas(compositeFrame(frame)); if (canvas) gif.addFrame(canvas, { delay: 1000 / fps, copy: true }); });
         gif.on('finished', (blob: Blob) => { const link = document.createElement('a'); link.download = `${projectName}.gif`; link.href = URL.createObjectURL(blob); link.click(); URL.revokeObjectURL(workerUrl); });
         gif.render();
       } catch (err) { alert('Error al generar el GIF.'); }
@@ -684,6 +1075,15 @@ function App() {
               <path d="M50.75 333.25c-12 12-18.75 28.28-18.75 45.26V424L0 480l32 32 56-32h45.49c16.97 0 33.25-6.74 45.25-18.74l129.32-129.32-128-128L50.75 333.25zM483.88 28.12c-37.47-37.5-98.28-37.5-135.75 0l-77.09 77.09-13.1-13.1c-9.44-9.44-24.65-9.31-33.94 0l-40.97 40.97c-9.37 9.37-9.37 24.57 0 33.94l161.94 161.94c9.44 9.44 24.65 9.31 33.94 0L419.88 288c9.37-9.37 9.37-24.57 0-33.94l-13.1-13.1 77.09-77.09c37.51-37.48 37.51-98.28.01-135.75z"/>
             </svg>
           </button>
+          <div className="layer-toggle mobile-layer-toggle" role="group" aria-label="Modo de capa">
+            <button className={activeLayer === 'melody' ? 'active' : ''} onClick={() => setActiveLayer('melody')} title="Modo Melodía"><MelodyIcon /></button>
+            <button className={activeLayer === 'percussion' ? 'active' : ''} onClick={() => setActiveLayer('percussion')} title="Modo Ritmo"><PercussionIcon /></button>
+          </div>
+          <button
+            className={`mobile-icon-btn glide-btn ${slideMode ? 'active' : ''}`}
+            onClick={() => setSlideMode(v => !v)}
+            title={slideMode ? 'Glide: ON' : 'Glide: OFF'}
+          >∿</button>
           {showUpdateDot && <span className="mobile-update-dot" title="Versión actualizada" />}
           <button className="mobile-icon-btn mobile-drawer-btn" onClick={() => setShowInfoDrawer(true)} title="Más opciones">☰</button>
         </div>
@@ -698,7 +1098,7 @@ function App() {
             markBuildSeen();
           }}
         >
-          <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={frames} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={playSingleNote} isRecording={isRecording} canvasBgColor={canvasBgColor} />
+          <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={activeLayerFrames} underlayPixels={underlayPixels} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={activeLayer === 'melody' ? playSingleNote : playPercussionSingle} isRecording={isRecording} canvasBgColor={canvasBgColor} />
         </div>
 
         <div className="mobile-bottom-stack">
@@ -715,7 +1115,7 @@ function App() {
                   key={c}
                   color={c}
                   selected={currentColor.toLowerCase() === c.toLowerCase()}
-                  onSelect={() => setCurrentColor(c)}
+                  onSelect={() => selectColor(c)}
                   onLongPress={() => setCanvasBgColor(c)}
                 />
               ))}
@@ -779,7 +1179,7 @@ function App() {
                   key={c}
                   color={c}
                   selected={currentColor.toLowerCase() === c.toLowerCase()}
-                  onSelect={() => setCurrentColor(c)}
+                  onSelect={() => selectColor(c)}
                   onLongPress={() => setCanvasBgColor(c)}
                 />
               ))}
@@ -795,11 +1195,13 @@ function App() {
             </div>
             <Timeline
               frames={frames}
+              activeLayer={activeLayer}
               currentFrameIndex={currentFrameIndex}
               setCurrentFrameIndex={setCurrentFrameIndex}
               addFrame={addFrame}
               removeFrame={removeFrame}
               duplicateFrame={duplicateFrame}
+              clearFrame={clearFrame}
               isPlaying={isPlaying}
               setIsPlaying={setIsPlaying}
               fps={fps}
@@ -956,18 +1358,31 @@ function App() {
         </header>
       )}
       <main>
-        {!isFullscreen && <Toolbar currentTool={currentTool} setTool={setCurrentTool} currentColor={currentColor} setColor={setCurrentColor} setCanvasBgColor={setCanvasBgColor} />}
+        {!isFullscreen && <Toolbar currentTool={currentTool} setTool={setCurrentTool} currentColor={currentColor} setColor={setCurrentColor} selectColor={selectColor} setCanvasBgColor={setCanvasBgColor} />}
         <div className="editor-area">
           {isFullscreen && (
             <button className="exit-fullscreen-btn" onClick={() => setIsFullscreen(false)}>
               Salir Pantalla Completa (Esc)
             </button>
           )}
-          <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={frames} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={playSingleNote} isRecording={isRecording} canvasBgColor={canvasBgColor} />
+          <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={activeLayerFrames} underlayPixels={underlayPixels} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={activeLayer === 'melody' ? playSingleNote : playPercussionSingle} isRecording={isRecording} canvasBgColor={canvasBgColor} />
         </div>
         {isImporting && <ImageImporter width={width} height={height} palette={FULL_PALETTE} onImport={handleImport} onCancel={() => setIsImporting(false)} />}
         {!isFullscreen && (
           <aside className="info-panel">
+            <div className="panel-mode-controls">
+              <div className="layer-toggle" role="group" aria-label="Modo de capa">
+                <button className={activeLayer === 'melody' ? 'active' : ''} onClick={() => setActiveLayer('melody')} title="Modo Melodía" aria-label="Modo Melodía"><MelodyIcon /></button>
+                <button className={activeLayer === 'percussion' ? 'active' : ''} onClick={() => setActiveLayer('percussion')} title="Modo Ritmo" aria-label="Modo Ritmo"><PercussionIcon /></button>
+              </div>
+              <button
+                className={`slide-toggle ${slideMode ? 'active' : ''}`}
+                onClick={() => setSlideMode(v => !v)}
+                title="Lo que pintes en melodía con esto activo tendrá glide/portamento entre frames"
+              >
+                {slideMode ? '◉ Glide ON' : '○ Glide OFF'}
+              </button>
+            </div>
             <h3>Información</h3><p>Frames: {frames.length} / {MAX_FRAMES}</p><p>Frame actual: {currentFrameIndex + 1}</p><p>Lienzo: {width} x {height}</p>
             <div className="shift-controls"><h3>Mover Capa</h3><div className="shift-cross"><button className="up" onClick={() => shiftPixels(0, -1)}>↑</button><button className="left" onClick={() => shiftPixels(-1, 0)}>←</button><button className="right" onClick={() => shiftPixels(1, 0)}>→</button><button className="down" onClick={() => shiftPixels(0, 1)}>↓</button></div></div>
             <div className="bg-panel"><h3>Imagen Referencia</h3>{!bgImage ? ( <div className="file-input-container"><input type="file" accept="image/*" onChange={handleBgUpload} /><span className="file-custom-text">No file</span></div> ) : ( <div className="bg-controls"><button className={isEditingBg ? 'active' : ''} onClick={() => setIsEditingBg(!isEditingBg)}>{isEditingBg ? '✅ Guardar' : '🎯 Ajustar'}</button><label>Opacidad: <input type="range" min="0" max="1" step="0.1" value={bgTransform.opacity} onChange={e => setBgTransform({...bgTransform, opacity: parseFloat(e.target.value)})} /></label><label>Zoom: <input type="range" min="0.1" max="5" step="0.1" value={bgTransform.scale} onChange={e => setBgTransform({...bgTransform, scale: parseFloat(e.target.value)})} /></label><label>Girar: <input type="range" min="0" max="360" step="1" value={bgTransform.rotation} onChange={e => setBgTransform({...bgTransform, rotation: parseInt(e.target.value)})} /></label><button onClick={() => setBgImage(null)} className="danger">Quitar</button></div> )}</div>
@@ -976,7 +1391,7 @@ function App() {
           </aside>
         )}
       </main>
-      {!isFullscreen && <Timeline frames={frames} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex} addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame} isPlaying={isPlaying} setIsPlaying={setIsPlaying} fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin} moveFrame={moveFrame} playFrameSound={playFrameSound} lastAddedIndex={lastAddedIndex} isRecording={isRecording} setIsRecording={setIsRecording} />}
+      {!isFullscreen && <Timeline frames={frames} activeLayer={activeLayer} currentFrameIndex={currentFrameIndex} setCurrentFrameIndex={setCurrentFrameIndex} addFrame={addFrame} removeFrame={removeFrame} duplicateFrame={duplicateFrame} clearFrame={clearFrame} isPlaying={isPlaying} setIsPlaying={setIsPlaying} fps={fps} setFps={setFps} width={width} height={height} onionSkin={onionSkin} setOnionSkin={setOnionSkin} moveFrame={moveFrame} playFrameSound={playFrameSound} lastAddedIndex={lastAddedIndex} isRecording={isRecording} setIsRecording={setIsRecording} />}
     </div>
   );
 }
