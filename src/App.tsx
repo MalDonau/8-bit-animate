@@ -1075,15 +1075,6 @@ function App() {
               <path d="M50.75 333.25c-12 12-18.75 28.28-18.75 45.26V424L0 480l32 32 56-32h45.49c16.97 0 33.25-6.74 45.25-18.74l129.32-129.32-128-128L50.75 333.25zM483.88 28.12c-37.47-37.5-98.28-37.5-135.75 0l-77.09 77.09-13.1-13.1c-9.44-9.44-24.65-9.31-33.94 0l-40.97 40.97c-9.37 9.37-9.37 24.57 0 33.94l161.94 161.94c9.44 9.44 24.65 9.31 33.94 0L419.88 288c9.37-9.37 9.37-24.57 0-33.94l-13.1-13.1 77.09-77.09c37.51-37.48 37.51-98.28.01-135.75z"/>
             </svg>
           </button>
-          <div className="layer-toggle mobile-layer-toggle" role="group" aria-label="Modo de capa">
-            <button className={activeLayer === 'melody' ? 'active' : ''} onClick={() => setActiveLayer('melody')} title="Modo Melodía"><MelodyIcon /></button>
-            <button className={activeLayer === 'percussion' ? 'active' : ''} onClick={() => setActiveLayer('percussion')} title="Modo Ritmo"><PercussionIcon /></button>
-          </div>
-          <button
-            className={`mobile-icon-btn glide-btn ${slideMode ? 'active' : ''}`}
-            onClick={() => setSlideMode(v => !v)}
-            title={slideMode ? 'Glide: ON' : 'Glide: OFF'}
-          >∿</button>
           {showUpdateDot && <span className="mobile-update-dot" title="Versión actualizada" />}
           <button className="mobile-icon-btn mobile-drawer-btn" onClick={() => setShowInfoDrawer(true)} title="Más opciones">☰</button>
         </div>
@@ -1265,6 +1256,22 @@ function App() {
                   placeholder="Nombre..."
                 />
                 <button className="mobile-drawer-close" onClick={() => setShowInfoDrawer(false)}>×</button>
+              </div>
+              <div className="mobile-drawer-section">
+                <h3>Modo</h3>
+                <div className="panel-mode-controls">
+                  <div className="layer-toggle" role="group" aria-label="Modo de capa">
+                    <button className={activeLayer === 'melody' ? 'active' : ''} onClick={() => setActiveLayer('melody')} title="Modo Melodía" aria-label="Modo Melodía"><MelodyIcon /></button>
+                    <button className={activeLayer === 'percussion' ? 'active' : ''} onClick={() => setActiveLayer('percussion')} title="Modo Ritmo" aria-label="Modo Ritmo"><PercussionIcon /></button>
+                  </div>
+                  <button
+                    className={`slide-toggle ${slideMode ? 'active' : ''}`}
+                    onClick={() => setSlideMode(v => !v)}
+                    title="Lo que pintes en melodía con esto activo tendrá glide/portamento entre frames"
+                  >
+                    {slideMode ? '◉ Glide ON' : '○ Glide OFF'}
+                  </button>
+                </div>
               </div>
               <div className="mobile-drawer-section">
                 <h3>Archivo</h3>
