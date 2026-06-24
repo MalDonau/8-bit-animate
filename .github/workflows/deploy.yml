@@ -9,6 +9,11 @@ permissions:
   pages: write
   id-token: write
 
+# Serialize deploys so rapid pushes don't race each other on the Pages API.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   build_site:
     runs-on: ubuntu-latest
