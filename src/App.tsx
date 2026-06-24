@@ -1258,22 +1258,6 @@ function App() {
                 <button className="mobile-drawer-close" onClick={() => setShowInfoDrawer(false)}>×</button>
               </div>
               <div className="mobile-drawer-section">
-                <h3>Modo</h3>
-                <div className="panel-mode-controls">
-                  <div className="layer-toggle" role="group" aria-label="Modo de capa">
-                    <button className={activeLayer === 'melody' ? 'active' : ''} onClick={() => setActiveLayer('melody')} title="Modo Melodía" aria-label="Modo Melodía"><MelodyIcon /></button>
-                    <button className={activeLayer === 'percussion' ? 'active' : ''} onClick={() => setActiveLayer('percussion')} title="Modo Ritmo" aria-label="Modo Ritmo"><PercussionIcon /></button>
-                  </div>
-                  <button
-                    className={`slide-toggle ${slideMode ? 'active' : ''}`}
-                    onClick={() => setSlideMode(v => !v)}
-                    title="Lo que pintes en melodía con esto activo tendrá glide/portamento entre frames"
-                  >
-                    {slideMode ? '◉ Glide ON' : '○ Glide OFF'}
-                  </button>
-                </div>
-              </div>
-              <div className="mobile-drawer-section">
                 <h3>Archivo</h3>
                 <div className="mobile-drawer-buttons">
                   <button onClick={() => { handleNew(); setShowInfoDrawer(false); }}>Nuevo</button>
@@ -1294,6 +1278,22 @@ function App() {
                   <button onClick={() => { handleExport('png-seq'); setShowInfoDrawer(false); }}>PNG ZIP</button>
                   <button onClick={() => { handleExport('jpg-seq'); setShowInfoDrawer(false); }}>JPG ZIP</button>
                   <button onClick={() => { handleExport('png'); setShowInfoDrawer(false); }}>Frame PNG</button>
+                </div>
+              </div>
+              <div className="mobile-drawer-section">
+                <h3>Modo</h3>
+                <div className="panel-mode-controls">
+                  <div className="layer-toggle" role="group" aria-label="Modo de capa">
+                    <button className={activeLayer === 'melody' ? 'active' : ''} onClick={() => setActiveLayer('melody')} title="Modo Melodía" aria-label="Modo Melodía"><MelodyIcon /></button>
+                    <button className={activeLayer === 'percussion' ? 'active' : ''} onClick={() => setActiveLayer('percussion')} title="Modo Ritmo" aria-label="Modo Ritmo"><PercussionIcon /></button>
+                  </div>
+                  <button
+                    className={`slide-toggle ${slideMode ? 'active' : ''}`}
+                    onClick={() => setSlideMode(v => !v)}
+                    title="Lo que pintes en melodía con esto activo tendrá glide/portamento entre frames"
+                  >
+                    {slideMode ? '◉ Glide ON' : '○ Glide OFF'}
+                  </button>
                 </div>
               </div>
               <div className="mobile-drawer-section">
