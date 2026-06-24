@@ -47,6 +47,29 @@ const compositeFrame = (frame: Frame): string[] => {
   return out;
 };
 
+// Normalize loaded frames to the current shape (handles legacy / partial data).
+const migrateFrames = (raw: any, w: number, h: number): Frame[] | null => {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  return raw.map((f: any) =>
+    Array.isArray(f)
+      ? { melody: f as string[], percussion: makeLayer(w, h), melodySlide: makeMask(w, h) }
+      : { melody: f.melody, percussion: f.percussion ?? makeLayer(w, h), melodySlide: f.melodySlide ?? makeMask(w, h) }
+  );
+};
+
+// Autosave: keep the current work in localStorage so a mobile tab reload doesn't lose it.
+const AUTOSAVE_KEY = '8bit-autosave-v1';
+const loadAutosave = (): any | null => {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (!d || !Array.isArray(d.frames) || d.frames.length === 0) return null;
+    return d;
+  } catch { return null; }
+};
+
 const SCALES = {
   MAJOR_PENTA: [0, 2, 4, 7, 9],
   MINOR_PENTA: [0, 3, 5, 7, 10],
@@ -135,12 +158,14 @@ const getNeighborsCount = (pixels: string[], index: number, width: number, heigh
 };
 
 function App() {
-  const [width, setWidth] = useState(DEFAULT_WIDTH);
-  const [height, setHeight] = useState(DEFAULT_HEIGHT);
-  const [projectName, setProjectName] = useState('animacion');
-  const [frames, setFrames] = useState<Frame[]>([
-    makeFrame(DEFAULT_WIDTH, DEFAULT_HEIGHT)
-  ]);
+  const [restored] = useState(loadAutosave); // a prior session's work, if any
+  const [width, setWidth] = useState<number>(() => restored?.width ?? DEFAULT_WIDTH);
+  const [height, setHeight] = useState<number>(() => restored?.height ?? DEFAULT_HEIGHT);
+  const [projectName, setProjectName] = useState<string>(() => restored?.projectName ?? 'animacion');
+  const [frames, setFrames] = useState<Frame[]>(() =>
+    migrateFrames(restored?.frames, restored?.width ?? DEFAULT_WIDTH, restored?.height ?? DEFAULT_HEIGHT)
+      ?? [makeFrame(DEFAULT_WIDTH, DEFAULT_HEIGHT)]
+  );
   const [activeLayer, setActiveLayer] = useState<LayerKey>('melody');
   const [slideMode, setSlideMode] = useState(false); // paint melody cells as gliding "slide" notes
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
@@ -195,9 +220,30 @@ function App() {
 
   const [bgImage, setBgImage] = useState<string | null>(null);
   const [isEditingBg, setIsEditingBg] = useState(false);
-  const [bgTransform, setBgTransform] = useState<BgTransform>({
-    x: 0, y: 0, scale: 1, rotation: 0, opacity: 0.5
-  });
+  const [bgTransform, setBgTransform] = useState<BgTransform>(() =>
+    restored?.bgTransform ?? { x: 0, y: 0, scale: 1, rotation: 0, opacity: 0.5 }
+  );
+
+  // Autosave the work to localStorage so a mobile tab reload doesn't lose it.
+  // (bgImage is intentionally excluded — data URLs can blow the storage quota.)
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ projectName, width, height, frames, bgTransform })); } catch {}
+    }, 800);
+    return () => window.clearTimeout(id);
+  }, [frames, projectName, width, height, bgTransform]);
+  useEffect(() => {
+    const flush = () => {
+      try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ projectName, width, height, frames, bgTransform })); } catch {}
+    };
+    const onVis = () => { if (document.visibilityState === 'hidden') flush(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, [frames, projectName, width, height, bgTransform]);
 
   const initAudio = useCallback(() => {
     if (audioCtx.current) return audioCtx.current;
