@@ -488,6 +488,43 @@ function App() {
     } catch {}
   }, []);
 
+  // Create-or-bend the single sustained glide voice toward a target (freq/pan/timbre).
+  const pushGlide = useCallback((targetFreq: number, panVal: number, color: string, volume: number, glideTime: number, attackTau = 0.12) => {
+    const ctx = initAudio();
+    const now = ctx.currentTime;
+    // Theremin-like timbre: smooth waveform + a mellow lowpass; brighter colors open it a touch.
+    const info = getHexInfo(color);
+    const wave: OscillatorType = info.s > 0.55 ? 'triangle' : 'sine';
+    const cutoff = 1100 + info.s * 1500;
+    const v = glideRef.current;
+    if (!v) {
+      const osc = ctx.createOscillator();
+      const lp = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      const pan = ctx.createStereoPanner();
+      osc.type = wave;
+      osc.frequency.setValueAtTime(targetFreq, now);
+      lp.type = 'lowpass'; lp.frequency.setValueAtTime(cutoff, now); lp.Q.value = 0.7;
+      pan.pan.setValueAtTime(panVal, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.setTargetAtTime(volume, now, attackTau);
+      osc.connect(lp); lp.connect(pan); pan.connect(gain);
+      if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
+      gain.connect(masterGain.current || ctx.destination);
+      osc.start(now);
+      glideRef.current = { osc, gain, pan, lp };
+    } else {
+      if (v.osc.type !== wave) v.osc.type = wave;
+      v.lp.frequency.setTargetAtTime(cutoff, now, 0.1);
+      v.osc.frequency.cancelScheduledValues(now);
+      v.osc.frequency.setValueAtTime(Math.max(20, v.osc.frequency.value), now);
+      v.osc.frequency.exponentialRampToValueAtTime(targetFreq, now + glideTime); // the bend
+      v.pan.pan.cancelScheduledValues(now);
+      v.pan.pan.linearRampToValueAtTime(panVal, now + glideTime);
+      v.gain.gain.setTargetAtTime(volume, now, attackTau);
+    }
+  }, [initAudio, onionSkin]);
+
   const updateGlideVoice = useCallback((framePixels: string[], slideMask: boolean[]) => {
     if (!audioEnabled) { releaseGlide(); return; }
     let sumRow = 0, sumX = 0, n = 0, repColor = '';
@@ -496,59 +533,48 @@ function App() {
       sumRow += Math.floor(i / width); sumX += i % width; n++;
       if (!repColor) repColor = c;
     });
-    const ctx = initAudio();
-    const now = ctx.currentTime;
-    // Denser slide (more cells) = louder sustained note, like the plucks.
-    const volume = 0.05 * Math.min(1, 0.4 + n * 0.05);
-    const glide = Math.max(0.02, (1 / fps) * 0.55);
-    const v = glideRef.current;
-
     // Rest (no slide this frame): fade to silence but KEEP the voice alive, so the
     // next slide note just swells back in instead of re-attacking percussively.
     if (n === 0) {
-      if (v) v.gain.gain.setTargetAtTime(0.0001, now, 0.05);
+      const v = glideRef.current;
+      if (v) v.gain.gain.setTargetAtTime(0.0001, audioCtx.current?.currentTime ?? 0, 0.05);
       return;
     }
-
     const scale = getResultantScale(framePixels);
     const avgRow = Math.round(sumRow / n);
     const targetFreq = Math.max(20, scale[31 - avgRow] || 220);
     const panVal = (sumX / n / width) * 2 - 1;
-    // Theremin-like timbre: smooth waveform + a mellow lowpass. Brighter blues open
-    // the filter a little, so they still differ subtly without ever getting harsh.
-    const slideInfo = getHexInfo(repColor);
-    const wave: OscillatorType = slideInfo.s > 0.55 ? 'triangle' : 'sine';
-    const cutoff = 1100 + slideInfo.s * 1500;
+    const volume = 0.05 * Math.min(1, 0.4 + n * 0.05); // denser slide = louder
+    const glide = Math.max(0.02, (1 / fps) * 0.55);
+    pushGlide(targetFreq, panVal, repColor, volume, glide);
+  }, [audioEnabled, width, fps, getResultantScale, releaseGlide, pushGlide]);
 
-    if (!v) {
-      const osc = ctx.createOscillator();
-      const lp = ctx.createBiquadFilter();
-      const gain = ctx.createGain();
-      const pan = ctx.createStereoPanner();
-      osc.type = wave;
-      osc.frequency.setValueAtTime(targetFreq, now);
-      lp.type = 'lowpass';
-      lp.frequency.setValueAtTime(cutoff, now);
-      lp.Q.value = 0.7;
-      pan.pan.setValueAtTime(panVal, now);
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.setTargetAtTime(volume, now, 0.12); // gentle exponential attack (~0.35s)
-      osc.connect(lp); lp.connect(pan); pan.connect(gain);
-      if (onionSkin > 0 && delayNode.current) gain.connect(delayNode.current);
-      gain.connect(masterGain.current || ctx.destination);
-      osc.start(now);
-      glideRef.current = { osc, gain, pan, lp };
-    } else {
-      if (v.osc.type !== wave) v.osc.type = wave; // keep each color's (mellow) timbre
-      v.lp.frequency.setTargetAtTime(cutoff, now, 0.1);
-      v.osc.frequency.cancelScheduledValues(now);
-      v.osc.frequency.setValueAtTime(Math.max(20, v.osc.frequency.value), now);
-      v.osc.frequency.exponentialRampToValueAtTime(targetFreq, now + glide); // the bend
-      v.pan.pan.cancelScheduledValues(now);
-      v.pan.pan.linearRampToValueAtTime(panVal, now + glide);
-      v.gain.gain.setTargetAtTime(volume, now, 0.12); // smoothly hold level / re-enter from a rest
-    }
-  }, [audioEnabled, width, fps, onionSkin, initAudio, getResultantScale, releaseGlide]);
+  // Live "theremin": while drawing with Glide on, bend the voice toward the drawn cell.
+  const glideLiveNote = useCallback((row: number, color: string, xPos: number) => {
+    if (!audioEnabled || !color || color === 'transparent' || color.toLowerCase() === '#ffffff') return;
+    const scale = getResultantScale(framesRef.current[currentFrameIndex].melody);
+    const targetFreq = Math.max(20, scale[31 - row] || 220);
+    pushGlide(targetFreq, (xPos / width) * 2 - 1, color, 0.06, 0.06, 0.04); // snappy attack/glide
+  }, [audioEnabled, width, currentFrameIndex, getResultantScale, pushGlide]);
+
+  // Melody brush feedback: with Glide on (and not playing) the stroke is a sustained
+  // gliding voice; otherwise it's the usual plucked note.
+  const playMelodyLive = useCallback((row: number, color: string, xPos: number, volumeFactor = 1, colorDensity = 1) => {
+    if (slideMode && !isPlaying) glideLiveNote(row, color, xPos);
+    else playSingleNote(row, color, xPos, volumeFactor, colorDensity);
+  }, [slideMode, isPlaying, glideLiveNote, playSingleNote]);
+
+  // Release the live glide voice when the stroke ends (not while playback owns it).
+  useEffect(() => {
+    if (!slideMode || isPlaying) return;
+    const end = () => releaseGlide();
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+    return () => {
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+    };
+  }, [slideMode, isPlaying, releaseGlide]);
 
   // ----- PERCUSSION ENGINE -----
   // A color maps to a drum voice by saturation (material), lightness (size/pitch)
@@ -1135,7 +1161,7 @@ function App() {
             markBuildSeen();
           }}
         >
-          <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={activeLayerFrames} underlayPixels={underlayPixels} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={activeLayer === 'melody' ? playSingleNote : playPercussionSingle} isRecording={isRecording} canvasBgColor={canvasBgColor} />
+          <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={activeLayerFrames} underlayPixels={underlayPixels} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={activeLayer === 'melody' ? playMelodyLive : playPercussionSingle} isRecording={isRecording} canvasBgColor={canvasBgColor} />
         </div>
 
         <div className="mobile-bottom-stack">
@@ -1418,7 +1444,7 @@ function App() {
               Salir Pantalla Completa (Esc)
             </button>
           )}
-          <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={activeLayerFrames} underlayPixels={underlayPixels} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={activeLayer === 'melody' ? playSingleNote : playPercussionSingle} isRecording={isRecording} canvasBgColor={canvasBgColor} />
+          <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={activeLayerFrames} underlayPixels={underlayPixels} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={activeLayer === 'melody' ? playMelodyLive : playPercussionSingle} isRecording={isRecording} canvasBgColor={canvasBgColor} />
         </div>
         {isImporting && <ImageImporter width={width} height={height} palette={FULL_PALETTE} onImport={handleImport} onCancel={() => setIsImporting(false)} />}
         {!isFullscreen && (
