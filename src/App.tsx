@@ -6,6 +6,7 @@ import TopMenu from './components/TopMenu';
 import ImageImporter from './components/ImageImporter';
 import Timeline from './components/Timeline';
 import HelpModal from './components/HelpModal';
+import SplashPixelWave from './components/SplashPixelWave';
 import { useHistory } from './hooks/useHistory';
 import JSZip from 'jszip';
 // @ts-ignore
@@ -1117,6 +1118,7 @@ function App() {
       <div className={`app-container ${darkMode ? 'dark-mode' : ''} mobile-layout`}>
         {!audioUnlocked && (
           <div className="mobile-start-overlay" onClick={handleStartTap}>
+            <SplashPixelWave cols={width} />
             {showUpdateDot && <span className="mobile-start-update-dot" title="Versión actualizada" />}
             <div className="mobile-start-text">
               <div className="mobile-start-title">8-BIT ANIMATE</div>
