@@ -22,6 +22,7 @@ interface TopMenuProps {
   setIsFullscreen: (full: boolean) => void;
   exportWithGrid: boolean;
   setExportWithGrid: (v: boolean) => void;
+  onHelp: () => void;
 }
 
 const TopMenu: React.FC<TopMenuProps> = ({
@@ -31,7 +32,8 @@ const TopMenu: React.FC<TopMenuProps> = ({
   darkMode, setDarkMode,
   audioEnabled, setAudioEnabled,
   isFullscreen, setIsFullscreen,
-  exportWithGrid, setExportWithGrid
+  exportWithGrid, setExportWithGrid,
+  onHelp
 }) => {
   const [showExportMenu, setShowExportMenu] = React.useState(false);
 
@@ -111,13 +113,15 @@ const TopMenu: React.FC<TopMenuProps> = ({
           )}
         </button>
 
-        <button 
+        <button
           onClick={() => setIsFullscreen(!isFullscreen)}
           className="fullscreen-toggle"
           title="Pantalla Completa"
         >
           {isFullscreen ? '⏹️' : '🔳'}
         </button>
+
+        <button onClick={onHelp} className="help-btn" title="Ayuda / Cómo se usa">?</button>
       </div>
     </div>
   );

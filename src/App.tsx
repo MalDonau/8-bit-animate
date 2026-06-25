@@ -5,6 +5,7 @@ import Toolbar, { DB32_PALETTE, EXTRA_COLORS, Swatch } from './components/Toolba
 import TopMenu from './components/TopMenu';
 import ImageImporter from './components/ImageImporter';
 import Timeline from './components/Timeline';
+import HelpModal from './components/HelpModal';
 import { useHistory } from './hooks/useHistory';
 import JSZip from 'jszip';
 // @ts-ignore
@@ -191,6 +192,7 @@ function App() {
   const [lastAddedIndex, setLastAddedIndex] = useState<number | null>(null);
   const [isRecording, setIsRecording] = useState(true);
   const [showInfoDrawer, setShowInfoDrawer] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [paletteExpanded, setPaletteExpanded] = useState(false);
   const [timelineExpanded, setTimelineExpanded] = useState(false);
   const [fpsDragOrigin, setFpsDragOrigin] = useState<{ y: number; fps: number } | null>(null);
@@ -1148,6 +1150,7 @@ function App() {
             </svg>
           </button>
           {showUpdateDot && <span className="mobile-update-dot" title="Versión actualizada" />}
+          <button className="mobile-icon-btn" onClick={() => setShowHelp(true)} title="Ayuda">?</button>
           <button className="mobile-icon-btn mobile-drawer-btn" onClick={() => setShowInfoDrawer(true)} title="Más opciones">☰</button>
         </div>
 
@@ -1315,6 +1318,7 @@ function App() {
         )}
 
         {isImporting && <ImageImporter width={width} height={height} palette={FULL_PALETTE} onImport={handleImport} onCancel={() => setIsImporting(false)} />}
+        {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
 
         {showInfoDrawer && (
           <div className="mobile-drawer-backdrop" onClick={() => setShowInfoDrawer(false)}>
@@ -1433,7 +1437,7 @@ function App() {
             />
             {showUpdateDot && <span className="desktop-update-dot" title="Versión actualizada" />}
           </div>
-          <TopMenu onUndo={handleUndo} onRedo={handleRedo} canUndo={canUndo} canRedo={canRedo} onSave={handleSave} onOpen={handleOpen} onExport={handleExport} onNew={handleNew} onImport={() => setIsImporting(true)} showGrid={showGrid} setShowGrid={setShowGrid} zoom={zoom} setZoom={setZoom} darkMode={darkMode} setDarkMode={setDarkMode} audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled} isFullscreen={isFullscreen} setIsFullscreen={setIsFullscreen} exportWithGrid={exportWithGrid} setExportWithGrid={setExportWithGrid} />
+          <TopMenu onUndo={handleUndo} onRedo={handleRedo} canUndo={canUndo} canRedo={canRedo} onSave={handleSave} onOpen={handleOpen} onExport={handleExport} onNew={handleNew} onImport={() => setIsImporting(true)} showGrid={showGrid} setShowGrid={setShowGrid} zoom={zoom} setZoom={setZoom} darkMode={darkMode} setDarkMode={setDarkMode} audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled} isFullscreen={isFullscreen} setIsFullscreen={setIsFullscreen} exportWithGrid={exportWithGrid} setExportWithGrid={setExportWithGrid} onHelp={() => setShowHelp(true)} />
         </header>
       )}
       <main>
@@ -1447,6 +1451,7 @@ function App() {
           <PixelCanvas pixels={pixels} setPixels={updatePixels} width={width} height={height} color={currentColor} setColor={setCurrentColor} tool={currentTool} zoom={zoom} showGrid={showGrid} onUndo={handleUndo} onRedo={handleRedo} onHistoryPush={handleHistoryPush} currentFrameIndex={currentFrameIndex} frames={activeLayerFrames} underlayPixels={underlayPixels} onionSkin={onionSkin} bgImage={bgImage} bgTransform={bgTransform} setBgTransform={setBgTransform} isEditingBg={isEditingBg} isPlaying={isPlaying} playPixelSound={activeLayer === 'melody' ? playMelodyLive : playPercussionSingle} isRecording={isRecording} canvasBgColor={canvasBgColor} />
         </div>
         {isImporting && <ImageImporter width={width} height={height} palette={FULL_PALETTE} onImport={handleImport} onCancel={() => setIsImporting(false)} />}
+        {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
         {!isFullscreen && (
           <aside className="info-panel">
             <div className="panel-mode-controls">
