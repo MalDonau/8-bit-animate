@@ -14,7 +14,8 @@ const SplashPixelWave: React.FC<{ cols: number }> = ({ cols: gridCols }) => {
 
     const GAP = 1;          // gap between squares
     const DURATION = 3000;  // ms for the single expanding wave (plays once)
-    const THICK = 2;        // ring half-thickness, in cells (thicker band)
+    const THICK_MIN = 2;    // ring half-thickness at the start (cells) — as it was
+    const THICK_MAX = 4;    // ...the band widens as the ring grows
     const FILL = 'rgba(255, 176, 0, 0.2)'; // gold; each pixel is simply on or off
 
     let w = 0, h = 0, cell = 16, cols = 0, rows = 0, cx = 0, cy = 0, maxD = 0, raf = 0;
@@ -42,13 +43,15 @@ const SplashPixelWave: React.FC<{ cols: number }> = ({ cols: gridCols }) => {
       // A single ring expands from the centre out past the edge, then stops.
       // Each pixel is simply on (within the ring) or off — no opacity fading.
       if (elapsed <= DURATION) {
-        const r = (elapsed / DURATION) * (maxD + THICK + 2);
+        const prog = elapsed / DURATION;
+        const r = prog * (maxD + THICK_MAX + 2);
+        const thick = THICK_MIN + prog * (THICK_MAX - THICK_MIN); // widens as it grows
         ctx.fillStyle = FILL;
         for (let gy = 0; gy < rows; gy++) {
           for (let gx = 0; gx < cols; gx++) {
             const dx = gx - cx, dy = gy - cy;
             const d = Math.sqrt(dx * dx + dy * dy);
-            if (Math.abs(d - r) <= THICK) ctx.fillRect(gx * cell, gy * cell, cell - GAP, cell - GAP);
+            if (Math.abs(d - r) <= thick) ctx.fillRect(gx * cell, gy * cell, cell - GAP, cell - GAP);
           }
         }
         raf = requestAnimationFrame(draw);
