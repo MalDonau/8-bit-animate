@@ -119,9 +119,6 @@ const HelpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           <Item icon={<Glyph>↔️</Glyph>} title="Mover de lugar">
             Arrastrá una miniatura para reordenar los cuadros.
           </Item>
-          <Item icon={<Glyph>✛</Glyph>} title="Mover capa">
-            Las flechas de "Mover capa" desplazan todo el dibujo del cuadro un casillero en cualquier dirección.
-          </Item>
 
           <h3>5 · Reproducción</h3>
           <Item icon={<Glyph>▶</Glyph>} title="Play">
@@ -158,12 +155,7 @@ const HelpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             Apagado, las notas suenan sueltas como siempre.
           </Item>
 
-          <h3>7 · Imagen de referencia</h3>
-          <Item icon={<Glyph>🖼️</Glyph>} title="Calcar una imagen">
-            Subí una foto para usarla de guía debajo del dibujo. Podés ajustar su opacidad, zoom y giro. No se exporta.
-          </Item>
-
-          <h3>8 · Archivo</h3>
+          <h3>7 · Archivo</h3>
           <Item icon={<Glyph>🆕</Glyph>} title="Nuevo">
             Empieza un proyecto en blanco (te pide confirmación porque borra lo actual).
           </Item>
@@ -181,12 +173,22 @@ const HelpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             (La imagen de referencia no se autoguarda; usá Guardar para conservar todo.)
           </Item>
 
-          <h3>9 · Exportar</h3>
+          <h3>8 · Exportar</h3>
           <Item icon={<Glyph>🎬</Glyph>} title="Formatos">
             <b>Frame PNG</b> (cuadro actual), <b>GIF</b> animado, <b>Video MP4</b>, o <b>secuencias</b> PNG/JPG en un ZIP.
           </Item>
           <Item icon={<Glyph>▦</Glyph>} title="Incluir grilla">
             Si lo marcás, la exportación sale con la cuadrícula dibujada encima.
+          </Item>
+
+          <h3>9 · Mover capa</h3>
+          <Item icon={<Glyph>✛</Glyph>} title="Mover capa">
+            Las flechas de "Mover capa" desplazan todo el dibujo del cuadro un casillero en cualquier dirección.
+          </Item>
+
+          <h3>10 · Imagen de referencia</h3>
+          <Item icon={<Glyph>🖼️</Glyph>} title="Calcar una imagen">
+            Subí una foto para usarla de guía debajo del dibujo. Podés ajustar su opacidad, zoom y giro. No se exporta.
           </Item>
 
           <p className="help-footer">¡Listo! Cualquier duda, volvé a abrir esta ayuda cuando quieras. 🎵</p>
