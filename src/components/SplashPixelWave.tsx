@@ -14,8 +14,8 @@ const SplashPixelWave: React.FC<{ cols: number }> = ({ cols: gridCols }) => {
 
     const GAP = 1;          // gap between squares
     const PERIOD = 4200;    // ms per wave cycle (includes a quiet pause)
-    const RING = 1.5;       // ring thickness, in cells
-    const MAX_ALPHA = 0.13;
+    const THICK = 0.7;      // ring half-thickness, in cells
+    const FILL = 'rgba(255, 176, 0, 0.2)'; // gold; each pixel is simply on or off
 
     let w = 0, h = 0, cell = 16, cols = 0, rows = 0, cx = 0, cy = 0, maxD = 0, raf = 0;
 
@@ -39,21 +39,16 @@ const SplashPixelWave: React.FC<{ cols: number }> = ({ cols: gridCols }) => {
       const t = ((now - start) % PERIOD) / PERIOD; // 0..1
       ctx.clearRect(0, 0, w, h);
 
-      const travel = Math.min(1, t / 0.8);          // wave reaches edge at 80% of cycle
-      const r = travel * (maxD + 3);
-      const env = Math.sin(travel * Math.PI);        // appears then disappears; quiet tail
-
-      if (env > 0.002) {
+      // Ring expands over 80% of the cycle, then a quiet gap. Each pixel is simply
+      // on (within the ring) or off — no opacity fading, like drawing in the app.
+      if (t < 0.8) {
+        const r = (t / 0.8) * (maxD + 2);
+        ctx.fillStyle = FILL;
         for (let gy = 0; gy < rows; gy++) {
           for (let gx = 0; gx < cols; gx++) {
             const dx = gx - cx, dy = gy - cy;
             const d = Math.sqrt(dx * dx + dy * dy);
-            const diff = Math.abs(d - r);
-            if (diff > RING) continue;
-            const a = (1 - diff / RING) * env * MAX_ALPHA;
-            if (a <= 0.003) continue;
-            ctx.fillStyle = `rgba(255, 176, 0, ${a.toFixed(3)})`;
-            ctx.fillRect(gx * cell, gy * cell, cell - GAP, cell - GAP);
+            if (Math.abs(d - r) <= THICK) ctx.fillRect(gx * cell, gy * cell, cell - GAP, cell - GAP);
           }
         }
       }

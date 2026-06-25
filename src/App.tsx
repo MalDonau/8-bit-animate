@@ -1128,7 +1128,6 @@ function App() {
           </div>
         )}
         <div className="mobile-top-bar">
-          <button className="mobile-icon-btn" onClick={() => setShowHelp(true)} title="Ayuda">?</button>
           <button onClick={handleUndo} disabled={!canUndo} className="mobile-icon-btn" title="Deshacer">↶</button>
           <button onClick={handleRedo} disabled={!canRedo} className="mobile-icon-btn" title="Rehacer">↷</button>
           <div className="mobile-tools-divider" />
@@ -1153,6 +1152,7 @@ function App() {
             </svg>
           </button>
           {showUpdateDot && <span className="mobile-update-dot" title="Versión actualizada" />}
+          <button className="mobile-icon-btn" onClick={() => setShowHelp(true)} title="Ayuda">?</button>
           <button className="mobile-icon-btn mobile-drawer-btn" onClick={() => setShowInfoDrawer(true)} title="Más opciones">☰</button>
         </div>
 
