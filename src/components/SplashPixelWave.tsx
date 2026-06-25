@@ -17,8 +17,10 @@ const SplashPixelWave: React.FC<{ cols: number }> = ({ cols: gridCols }) => {
     const THICK_MIN = 2;    // ring half-thickness at the start (cells) — as it was
     const THICK_MAX = 4;    // ...the band widens as the ring grows
     const FILL = 'rgba(255, 176, 0, 0.2)'; // gold; each pixel is simply on or off
+    const TRAIL_COUNT = 7;  // scattered pixels left lit behind the ring
 
     let w = 0, h = 0, cell = 16, cols = 0, rows = 0, cx = 0, cy = 0, maxD = 0, raf = 0;
+    let trail: { gx: number; gy: number; d: number }[] = [];
 
     const resize = () => {
       w = canvas.clientWidth;
@@ -31,6 +33,14 @@ const SplashPixelWave: React.FC<{ cols: number }> = ({ cols: gridCols }) => {
       cx = (cols - 1) / 2;
       cy = (rows - 1) / 2;
       maxD = Math.sqrt(cx * cx + cy * cy);
+      // scatter a few random cells; each lights up as the ring sweeps past it
+      trail = [];
+      for (let k = 0; k < TRAIL_COUNT; k++) {
+        const gx = Math.floor(Math.random() * cols);
+        const gy = Math.floor(Math.random() * rows);
+        const dx = gx - cx, dy = gy - cy;
+        trail.push({ gx, gy, d: Math.sqrt(dx * dx + dy * dy) });
+      }
     };
     resize();
     window.addEventListener('resize', resize);
@@ -39,14 +49,19 @@ const SplashPixelWave: React.FC<{ cols: number }> = ({ cols: gridCols }) => {
     const draw = (now: number) => {
       const elapsed = now - start;
       ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = FILL;
 
-      // A single ring expands from the centre out past the edge, then stops.
-      // Each pixel is simply on (within the ring) or off — no opacity fading.
+      const prog = Math.min(1, elapsed / DURATION);
+      const r = prog * (maxD + THICK_MAX + 2);
+
+      // Trail: each scattered pixel lights up once the ring reaches it, and stays on.
+      for (const tc of trail) {
+        if (r >= tc.d) ctx.fillRect(tc.gx * cell, tc.gy * cell, cell - GAP, cell - GAP);
+      }
+
+      // The expanding ring (binary on/off), only while it's still growing.
       if (elapsed <= DURATION) {
-        const prog = elapsed / DURATION;
-        const r = prog * (maxD + THICK_MAX + 2);
         const thick = THICK_MIN + prog * (THICK_MAX - THICK_MIN); // widens as it grows
-        ctx.fillStyle = FILL;
         for (let gy = 0; gy < rows; gy++) {
           for (let gx = 0; gx < cols; gx++) {
             const dx = gx - cx, dy = gy - cy;
