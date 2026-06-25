@@ -825,6 +825,14 @@ input[type="file"]::file-selector-button {
   margin-left: auto;
 }
 
+/* Keep Help (?) next to the ☰ menu on the right edge. */
+.mobile-help-btn {
+  margin-left: auto;
+}
+.mobile-help-btn + .mobile-drawer-btn {
+  margin-left: 6px;
+}
+
 .mobile-update-dot {
   width: 10px;
   height: 10px;

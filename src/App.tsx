@@ -1152,7 +1152,7 @@ function App() {
             </svg>
           </button>
           {showUpdateDot && <span className="mobile-update-dot" title="Versión actualizada" />}
-          <button className="mobile-icon-btn" onClick={() => setShowHelp(true)} title="Ayuda">?</button>
+          <button className="mobile-icon-btn mobile-help-btn" onClick={() => setShowHelp(true)} title="Ayuda">?</button>
           <button className="mobile-icon-btn mobile-drawer-btn" onClick={() => setShowInfoDrawer(true)} title="Más opciones">☰</button>
         </div>
 
