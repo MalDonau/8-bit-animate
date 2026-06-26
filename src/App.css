@@ -1578,18 +1578,19 @@ input[type="file"]::file-selector-button {
 /* ---- Hue (matiz) slider in the mode controls ---- */
 .hue-control {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column-reverse; /* slider on top, "Matiz" label underneath */
+  align-items: stretch;
+  gap: 5px;
 }
 .hue-label {
   font-size: 0.62rem;
   letter-spacing: 1px;
   color: var(--text-dim);
   text-transform: uppercase;
-  flex-shrink: 0;
+  text-align: center;
 }
 .hue-slider {
-  flex: 1;
+  width: 100%;
   -webkit-appearance: none;
   appearance: none;
   height: 8px;

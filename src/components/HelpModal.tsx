@@ -179,6 +179,12 @@ const HelpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             (portamento) hacia la nota del cuadro siguiente. Y mientras dibujás, la nota sigue tu mano como un theremin.
             Apagado, las notas suenan sueltas como siempre.
           </Item>
+          <Item icon={<Glyph>🌈</Glyph>} title="Matiz">
+            El slider <b>Matiz</b> (debajo de Glide) gira los colores del cuadro por la rueda cromática: cada píxel
+            salta al color vecino de la paleta, así que cambian el <b>color</b> y el <b>timbre</b> a la vez. La vuelta
+            completa regresa al original. Con <b>Play + REC</b>, sostené el slider para animar el barrido a lo largo
+            de la animación.
+          </Item>
 
           <h3>7 · Archivo</h3>
           <Item icon={<Glyph>🆕</Glyph>} title="Nuevo">
