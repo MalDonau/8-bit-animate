@@ -82,7 +82,18 @@ const HelpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           <Item icon={<Glyph>🎨</Glyph>} title="Elegir de la paleta">
             Tocá un color de la paleta para seleccionarlo (suena un adelanto de cómo va a sonar).
           </Item>
-          <Item icon={<Glyph>＋</Glyph>} title="Color personalizado">
+          <Item
+            icon={(
+              <span className="help-glyph">
+                <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="8" y="2" width="8" height="6" rx="1" fill="#ffa23e" stroke="#ffb000" strokeWidth="2" />
+                  <rect x="8" y="10" width="8" height="6" rx="1" fill="#6abe30" />
+                  <rect x="8" y="17" width="8" height="6" rx="1" fill="#fbf236" />
+                </svg>
+              </span>
+            )}
+            title="Color personalizado"
+          >
             El selector de color (cuadrito de color) te deja elegir cualquier tono que quieras.
           </Item>
           <Item icon={<Glyph>⬛</Glyph>} title="Color de fondo del lienzo">
