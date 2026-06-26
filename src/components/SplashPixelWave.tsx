@@ -16,8 +16,7 @@ const SplashPixelWave: React.FC<{ cols: number }> = ({ cols: gridCols }) => {
     const DURATION = 3000;  // ms for the single expanding ring
     const THICK_MIN = 2;    // ring half-thickness at the start (cells)
     const THICK_MAX = 4;    // ...the band widens as the ring grows
-    const RING_FILL = 'rgba(255, 176, 0, 0.2)';   // soft ring
-    const SPARK_FILL = 'rgba(255, 212, 96, 0.7)'; // brighter sparkles
+    const FILL = 'rgba(255, 176, 0, 0.2)';  // ring and sparkles share the same colour
     const SPARKS = 7;       // how many sparkles in the trail
 
     let w = 0, h = 0, cell = 16, cols = 0, rows = 0, cx = 0, cy = 0, maxD = 0, raf = 0;
@@ -46,7 +45,7 @@ const SplashPixelWave: React.FC<{ cols: number }> = ({ cols: gridCols }) => {
         sparks.push({
           gx, gy,
           d: Math.sqrt(dx * dx + dy * dy),
-          lag: rand(1, 3),      // light up a little behind the ring
+          lag: rand(0, 5),      // extra cells behind the ring's trailing edge (staggers them)
           dur: rand(250, 600),  // how long it stays on, once
           litAt: -1,
         });
@@ -62,11 +61,13 @@ const SplashPixelWave: React.FC<{ cols: number }> = ({ cols: gridCols }) => {
 
       const prog = Math.min(1, elapsed / DURATION);
       const r = prog * (maxD + THICK_MAX + 2);
+      const thick = THICK_MIN + prog * (THICK_MAX - THICK_MIN); // ring widens as it grows
+      const trailing = r - thick;                               // the ring's back edge
+
+      ctx.fillStyle = FILL;
 
       // The expanding ring (binary on/off), only while it's still growing.
       if (elapsed <= DURATION) {
-        ctx.fillStyle = RING_FILL;
-        const thick = THICK_MIN + prog * (THICK_MAX - THICK_MIN); // widens as it grows
         for (let gy = 0; gy < rows; gy++) {
           for (let gx = 0; gx < cols; gx++) {
             const dx = gx - cx, dy = gy - cy;
@@ -76,12 +77,12 @@ const SplashPixelWave: React.FC<{ cols: number }> = ({ cols: gridCols }) => {
         }
       }
 
-      // Sparkles: each turns on once the ring has passed it, then off — a single time.
-      ctx.fillStyle = SPARK_FILL;
+      // Sparkles: light up only once the ring's BACK edge has cleared the cell
+      // (so always behind the ring, never overlapping), then off — a single time.
       let pending = false;
       for (const s of sparks) {
         if (s.litAt < 0) {
-          if (r >= s.d + s.lag) s.litAt = now; // the ring just went by
+          if (trailing >= s.d + s.lag) s.litAt = now;
           else { pending = true; continue; }
         }
         const age = now - s.litAt;
