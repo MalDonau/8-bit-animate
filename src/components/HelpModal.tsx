@@ -29,6 +29,9 @@ const I = {
   drum: (
     <svg viewBox="0 0 512 512" fill="currentColor" aria-hidden="true"><ellipse cx="256" cy="250" rx="160" ry="58" /><path d="M96 250 v116 a160 58 0 0 0 320 0 V250 Z" /><line x1="296" y1="205" x2="128" y2="78" stroke="currentColor" strokeWidth="30" strokeLinecap="round" /><line x1="216" y1="205" x2="384" y2="78" stroke="currentColor" strokeWidth="30" strokeLinecap="round" /></svg>
   ),
+  fps: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="9" y1="3" x2="15" y2="3" /><line x1="12" y1="3" x2="12" y2="7" /><circle cx="12" cy="14" r="7" /><line x1="12" y1="14" x2="12" y2="10" /></svg>
+  ),
 };
 
 const Item: React.FC<{ icon: React.ReactNode; title: string; children: React.ReactNode }> = ({ icon, title, children }) => (
@@ -146,7 +149,7 @@ const HelpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           <Item icon={<Glyph>▶</Glyph>} title="Play">
             Reproduce la animación en bucle (y suena la música que generan tus dibujos).
           </Item>
-          <Item icon={<Glyph>⏱</Glyph>} title="FPS (velocidad)">
+          <Item icon={I.fps} title="FPS (velocidad)">
             Cuántos cuadros por segundo. Más alto = animación más rápida.
           </Item>
           <Item icon={<Glyph>◎</Glyph>} title="Papel cebolla (onion skin)">

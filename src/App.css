@@ -1566,3 +1566,11 @@ input[type="file"]::file-selector-button {
 .mobile-start-overlay .mobile-start-update-dot {
   z-index: 3;
 }
+
+/* FPS label: stopwatch icon inline with the number */
+.fps-control .fps-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.fps-control .fps-row svg { display: block; }
