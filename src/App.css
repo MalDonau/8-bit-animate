@@ -1491,6 +1491,13 @@ input[type="file"]::file-selector-button {
 }
 .help-icon svg { width: 18px; height: 18px; display: block; }
 .help-glyph { font-size: 1rem; line-height: 1; }
+/* Concept markers (emoji / glyphs) sit unframed on the background, so they don't
+   look like the real, framed tool buttons. */
+.help-icon:has(.help-glyph) {
+  border-color: transparent;
+  background: transparent;
+}
+.help-icon:has(.help-glyph) .help-glyph { font-size: 1.4rem; }
 .help-glyph.help-rec { color: #ff4040; }
 .help-text { font-size: 0.84rem; line-height: 1.45; }
 .help-text strong { color: var(--text-color); display: block; margin-bottom: 2px; }
@@ -1538,6 +1545,7 @@ input[type="file"]::file-selector-button {
   .help-icon { width: 42px; height: 42px; border-radius: 8px; }
   .help-icon svg { width: 23px; height: 23px; }
   .help-glyph { font-size: 1.25rem; }
+  .help-icon:has(.help-glyph) .help-glyph { font-size: 1.6rem; }
   .help-text { font-size: 0.96rem; line-height: 1.5; }
 }
 
