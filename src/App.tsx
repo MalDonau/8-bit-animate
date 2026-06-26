@@ -17,6 +17,66 @@ const DEFAULT_HEIGHT = 32;
 const MAX_FRAMES = 48;
 const FULL_PALETTE = [...DB32_PALETTE, ...EXTRA_COLORS];
 
+// ----- HUE ROTATION (frame colour wheel) -----
+const PALETTE_RGB = FULL_PALETTE.map(hex => ({
+  hex,
+  r: parseInt(hex.slice(1, 3), 16),
+  g: parseInt(hex.slice(3, 5), 16),
+  b: parseInt(hex.slice(5, 7), 16),
+}));
+const nearestPaletteColor = (r: number, g: number, b: number) => {
+  let best = FULL_PALETTE[0], bd = Infinity;
+  for (const p of PALETTE_RGB) {
+    const d = (r - p.r) ** 2 + (g - p.g) ** 2 + (b - p.b) ** 2;
+    if (d < bd) { bd = d; best = p.hex; }
+  }
+  return best;
+};
+const hexToHsl = (hex: string) => {
+  const r = parseInt(hex.slice(1, 3), 16) / 255, g = parseInt(hex.slice(3, 5), 16) / 255, b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  const l = (max + min) / 2;
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  let h = 0;
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60; if (h < 0) h += 360;
+  }
+  return { h, s, l };
+};
+const hslToRgb = (h: number, s: number, l: number) => {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const hp = h / 60;
+  const x = c * (1 - Math.abs((hp % 2) - 1));
+  let r = 0, g = 0, b = 0;
+  if (hp < 1) { r = c; g = x; } else if (hp < 2) { r = x; g = c; }
+  else if (hp < 3) { g = c; b = x; } else if (hp < 4) { g = x; b = c; }
+  else if (hp < 5) { r = x; b = c; } else { r = c; b = x; }
+  const m = l - c / 2;
+  return { r: Math.round((r + m) * 255), g: Math.round((g + m) * 255), b: Math.round((b + m) * 255) };
+};
+// Rotate a colour's hue by `deg` and snap to the nearest palette colour (grays unchanged).
+const rotateColorHue = (hex: string, deg: number) => {
+  if (hex === 'transparent' || hex.length < 7) return hex;
+  const { h, s, l } = hexToHsl(hex);
+  if (s < 0.05) return hex;
+  const nh = ((h + deg) % 360 + 360) % 360;
+  const { r, g, b } = hslToRgb(nh, s, l);
+  return nearestPaletteColor(r, g, b);
+};
+const remapFrameHue = (base: { melody: string[]; percussion: string[] }, deg: number) => {
+  const cache = new Map<string, string>();
+  const conv = (c: string) => {
+    if (c === 'transparent') return c;
+    let v = cache.get(c);
+    if (v === undefined) { v = rotateColorHue(c, deg); cache.set(c, v); }
+    return v;
+  };
+  return { melody: base.melody.map(conv), percussion: base.percussion.map(conv) };
+};
+
 export type LayerKey = 'melody' | 'percussion';
 export interface Frame {
   melody: string[];
@@ -170,7 +230,14 @@ function App() {
   );
   const [activeLayer, setActiveLayer] = useState<LayerKey>('melody');
   const [slideMode, setSlideMode] = useState(false); // paint melody cells as gliding "slide" notes
+  const [hueSlider, setHueSlider] = useState(0);     // 0..360° hue rotation of the frame's colours
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
+  const currentFrameIndexRef = useRef(0);
+  useEffect(() => { currentFrameIndexRef.current = currentFrameIndex; }, [currentFrameIndex]);
+  // Hue jog session: per-frame base colours captured while dragging (non-cumulative).
+  const hueBasesRef = useRef<Map<number, { melody: string[]; percussion: string[] }>>(new Map());
+  const hueActiveRef = useRef(false);
+  const hueDegRef = useRef(0);
 
   const framesRef = useRef(frames);
   useEffect(() => { framesRef.current = frames; }, [frames]);
@@ -192,6 +259,8 @@ function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [lastAddedIndex, setLastAddedIndex] = useState<number | null>(null);
   const [isRecording, setIsRecording] = useState(true);
+  const isRecordingRef = useRef(true);
+  useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
   const [showInfoDrawer, setShowInfoDrawer] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [paletteExpanded, setPaletteExpanded] = useState(false);
@@ -776,21 +845,52 @@ function App() {
     previewColor(c);
   }, [previewColor]);
 
+  // Rotate a frame's colours by `deg`, relative to a base captured once per drag
+  // session (so re-applying the same value never drifts, even across playback loops).
+  const applyHueToFrame = useCallback((idx: number, deg: number) => {
+    const bases = hueBasesRef.current;
+    if (!bases.has(idx)) {
+      const f = framesRef.current[idx];
+      if (!f) return;
+      bases.set(idx, { melody: [...f.melody], percussion: [...f.percussion] });
+    }
+    const remapped = remapFrameHue(bases.get(idx)!, deg);
+    setFrames(prev => {
+      const nf = [...prev];
+      nf[idx] = { ...nf[idx], melody: remapped.melody, percussion: remapped.percussion };
+      return nf;
+    });
+  }, []);
+  const onHueDown = () => { hueActiveRef.current = true; hueBasesRef.current = new Map(); };
+  const onHueChange = (deg: number) => {
+    setHueSlider(deg);
+    hueDegRef.current = deg;
+    applyHueToFrame(currentFrameIndexRef.current, deg);
+  };
+  const onHueUp = () => {
+    hueActiveRef.current = false;
+    hueBasesRef.current = new Map();
+    setHueSlider(0);
+    hueDegRef.current = 0;
+    pushState(framesRef.current); // one undo step for the whole hue gesture
+  };
+
   useEffect(() => {
     let interval: number | undefined;
     if (isPlaying && framesRef.current.length > 1) {
       interval = window.setInterval(() => {
-        setCurrentFrameIndex((prev) => {
-          const next = (prev + 1) % framesRef.current.length;
-          playFramePlayback(framesRef.current[next]);
-          return next;
-        });
+        const next = (currentFrameIndexRef.current + 1) % framesRef.current.length;
+        currentFrameIndexRef.current = next; // keep the ref in lockstep with the loop
+        playFramePlayback(framesRef.current[next]);
+        // While performing the hue jog during playback (with REC on), bake it per frame.
+        if (hueActiveRef.current && isRecordingRef.current) applyHueToFrame(next, hueDegRef.current);
+        setCurrentFrameIndex(next);
       }, 1000 / fps);
     } else {
       releaseGlide();
     }
     return () => window.clearInterval(interval);
-  }, [isPlaying, fps, playFramePlayback, releaseGlide]);
+  }, [isPlaying, fps, playFramePlayback, releaseGlide, applyHueToFrame]);
 
   const otherLayer: LayerKey = activeLayer === 'melody' ? 'percussion' : 'melody';
   const currentFrame = frames[currentFrameIndex];
@@ -1372,6 +1472,16 @@ function App() {
                   >
                     {slideMode ? '◉ Glide ON' : '○ Glide OFF'}
                   </button>
+                  <div className="hue-control" title="Girá el matiz de los colores del frame (la vuelta completa vuelve al original)">
+                    <span className="hue-label">Matiz</span>
+                    <input
+                      type="range" className="hue-slider" min="0" max="360" step="1" value={hueSlider}
+                      onPointerDown={onHueDown}
+                      onChange={(e) => onHueChange(parseInt(e.target.value))}
+                      onPointerUp={onHueUp}
+                      onPointerCancel={onHueUp}
+                    />
+                  </div>
                 </div>
               </div>
               <div className="mobile-drawer-section">
@@ -1468,6 +1578,16 @@ function App() {
               >
                 {slideMode ? '◉ Glide ON' : '○ Glide OFF'}
               </button>
+              <div className="hue-control" title="Girá el matiz de los colores del frame (la vuelta completa vuelve al original)">
+                <span className="hue-label">Matiz</span>
+                <input
+                  type="range" className="hue-slider" min="0" max="360" step="1" value={hueSlider}
+                  onPointerDown={onHueDown}
+                  onChange={(e) => onHueChange(parseInt(e.target.value))}
+                  onPointerUp={onHueUp}
+                  onPointerCancel={onHueUp}
+                />
+              </div>
             </div>
             <h3>Información</h3><p>Frames: {frames.length} / {MAX_FRAMES}</p><p>Frame actual: {currentFrameIndex + 1}</p><p>Lienzo: {width} x {height}</p>
             <div className="shift-controls"><h3>Mover Capa</h3><div className="shift-cross"><button className="up" onClick={() => shiftPixels(0, -1)}>↑</button><button className="left" onClick={() => shiftPixels(-1, 0)}>←</button><button className="right" onClick={() => shiftPixels(1, 0)}>→</button><button className="down" onClick={() => shiftPixels(0, 1)}>↓</button></div></div>
