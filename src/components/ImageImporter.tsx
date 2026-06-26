@@ -8,6 +8,13 @@ interface ImageImporterProps {
   palette: string[];
 }
 
+const PREVIEW_ZOOM = 10; // the preview canvas is shown at 10×
+// Logarithmic zoom mapping so the slider isn't hyper-sensitive at small scales.
+const SCALE_MIN = 0.002;
+const SCALE_MAX = 12;
+const scaleToPos = (s: number) => Math.log(Math.max(SCALE_MIN, s) / SCALE_MIN) / Math.log(SCALE_MAX / SCALE_MIN);
+const posToScale = (p: number) => SCALE_MIN * Math.pow(SCALE_MAX / SCALE_MIN, p);
+
 const ImageImporter: React.FC<ImageImporterProps> = ({ onImport, onCancel, width, height, palette }) => {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [scale, setScale] = useState(1);
@@ -106,13 +113,13 @@ const ImageImporter: React.FC<ImageImporterProps> = ({ onImport, onCancel, width
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!image) return;
     setIsDragging(true);
-    setDragStart({ x: e.clientX - offsetX, y: e.clientY - offsetY });
+    setDragStart({ x: e.clientX - offsetX * PREVIEW_ZOOM, y: e.clientY - offsetY * PREVIEW_ZOOM });
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging || !image) return;
-    setOffsetX(e.clientX - dragStart.x);
-    setOffsetY(e.clientY - dragStart.y);
+    setOffsetX((e.clientX - dragStart.x) / PREVIEW_ZOOM);
+    setOffsetY((e.clientY - dragStart.y) / PREVIEW_ZOOM);
   };
 
   const handleMouseUp = () => {
@@ -122,8 +129,8 @@ const ImageImporter: React.FC<ImageImporterProps> = ({ onImport, onCancel, width
   const handleWheel = (e: React.WheelEvent) => {
     if (!image) return;
     e.preventDefault();
-    const factor = e.deltaY > 0 ? 0.9 : 1.1;
-    const newScale = Math.max(0.01, Math.min(20, scale * factor));
+    const factor = e.deltaY > 0 ? 0.94 : 1.06;
+    const newScale = Math.max(SCALE_MIN, Math.min(SCALE_MAX, scale * factor));
     setScale(newScale);
   };
 
@@ -145,9 +152,9 @@ const ImageImporter: React.FC<ImageImporterProps> = ({ onImport, onCancel, width
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
                 onWheel={handleWheel}
-                style={{ 
-                  width: width * 10, 
-                  height: height * 10, 
+                style={{
+                  width: width * PREVIEW_ZOOM,
+                  height: height * PREVIEW_ZOOM,
                   imageRendering: 'pixelated',
                   border: '1px solid #ccc',
                   cursor: isDragging ? 'grabbing' : 'grab'
@@ -155,8 +162,8 @@ const ImageImporter: React.FC<ImageImporterProps> = ({ onImport, onCancel, width
               />
             </div>
             <div className="controls">
-              <label>Zoom: 
-                <input type="range" min="0.01" max="10" step="0.01" value={scale} onChange={(e) => setScale(parseFloat(e.target.value))} />
+              <label>Zoom:
+                <input type="range" min="0" max="1" step="0.001" value={scaleToPos(scale)} onChange={(e) => setScale(posToScale(parseFloat(e.target.value)))} />
               </label>
               <label>X: 
                 <input type="range" min={-width} max={width} step="1" value={offsetX} onChange={(e) => setOffsetX(parseFloat(e.target.value))} />
